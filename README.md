@@ -151,12 +151,14 @@ swaggervu exploit $T/swagger-ui --confirm \
 #   fires, the built-in markers, or a --marker string you know it injects.
 ```
 
-By default `exploit` serves a **benign built-in PoC** with permissive CORS. To make
-your own hosted payloads the default without flags, export them (per param):
+By default `exploit` injects the bundled hosted PoC specs
+(`configUrl` → `https://jumpy-floor.surge.sh/test.json`,
+`url` → `https://jumpy-floor.surge.sh/test.yaml`). Override either per param
+without touching flags via the environment:
 
 ```bash
-export SWAGGERVU_PAYLOAD_CONFIGURL=https://you.surge.sh/test.json
-export SWAGGERVU_PAYLOAD_URL=https://you.surge.sh/test.yaml
+export SWAGGERVU_PAYLOAD_CONFIGURL=https://your-host.example/test.json
+export SWAGGERVU_PAYLOAD_URL=https://your-host.example/test.yaml
 ```
 
 Or pass `--payload PARAM=URL` per run, `--payload-url URL` for all params, or

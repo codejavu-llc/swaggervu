@@ -22,6 +22,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 - `discover` probes both http and https for bare hosts by default (`--https-only`
   to restrict; `-m`/`--mixed` deprecated as it is now the default).
+- `exploit` injects bundled hosted PoC specs by default (override via
+  `SWAGGERVU_PAYLOAD_*`, `--payload`, or `--builtin-payload` for the local PoC).
 
 ## [1.0.0]
 

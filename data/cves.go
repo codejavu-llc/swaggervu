@@ -19,13 +19,25 @@ type CVE struct {
 	Reference string
 }
 
-// DefaultPayload returns a per-parameter PoC override from the environment, so
-// operators can wire in their own hosted payloads without baking a personal
-// host into the published binary. It reads SWAGGERVU_PAYLOAD_<PARAM> (param
-// upper-cased), e.g. SWAGGERVU_PAYLOAD_CONFIGURL / SWAGGERVU_PAYLOAD_URL.
-// When unset, the exploit module falls back to its benign built-in PoC.
+// builtinDefaultPayloads are the hosted PoC specs injected by default for each
+// injection param. Override per param with SWAGGERVU_PAYLOAD_<PARAM>, pass
+// --payload PARAM=URL, or force the self-contained local PoC with
+// `exploit --builtin-payload`.
+var builtinDefaultPayloads = map[string]string{
+	"configUrl": "https://jumpy-floor.surge.sh/test.json",
+	"url":       "https://jumpy-floor.surge.sh/test.yaml",
+}
+
+// DefaultPayload returns the per-parameter PoC URL to inject. It prefers an
+// environment override (SWAGGERVU_PAYLOAD_<PARAM>, param upper-cased, e.g.
+// SWAGGERVU_PAYLOAD_CONFIGURL / SWAGGERVU_PAYLOAD_URL); when unset it falls back
+// to the bundled default for that param. An empty result lets the exploit module
+// use its local benign built-in PoC.
 func DefaultPayload(param string) string {
-	return os.Getenv("SWAGGERVU_PAYLOAD_" + strings.ToUpper(param))
+	if v := os.Getenv("SWAGGERVU_PAYLOAD_" + strings.ToUpper(param)); v != "" {
+		return v
+	}
+	return builtinDefaultPayloads[param]
 }
 
 // Evaluated but intentionally NOT in the registry, because the headless engine
