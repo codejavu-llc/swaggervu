@@ -1,0 +1,18 @@
+name: Feature request
+description: Suggest a capability or improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the use case from a hunter's perspective.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed solution
+      description: What should SwaggerVu do? Keep in mind the project stays simple, light, and non-destructive by default.
+    validations:
+      required: true

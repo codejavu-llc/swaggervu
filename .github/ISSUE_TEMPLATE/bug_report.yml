@@ -1,0 +1,35 @@
+name: Bug report
+description: Something didn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you run, what did you expect, and what happened instead?
+      placeholder: |
+        Command: swaggervu all example.com
+        Expected: ...
+        Got: ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SwaggerVu version
+      description: Output of `swaggervu --version`
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS / arch
+      placeholder: linux/amd64, macOS arm64, ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Paste any error output (redact sensitive target data).
+      render: shell
