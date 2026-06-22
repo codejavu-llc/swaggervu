@@ -14,15 +14,12 @@ func severityForReasons(reasons []string) string {
 	high, medium := false, false
 	for _, r := range reasons {
 		switch {
-		case strings.HasPrefix(r, "secret:"):
+		case strings.HasPrefix(r, "secret:"), r == "broken access control":
 			high = true
-		case r == "stack trace", r == "sql error", r == "go panic",
-			r == ".NET error", r == "php error", r == "debug enabled":
+		case r == "auth not enforced", r == "stack trace", r == "sql error",
+			r == "go panic", r == ".NET error", r == "php error",
+			r == "debug enabled", r == "unauthenticated data", r == "internal path":
 			medium = true
-		case r == "unauthenticated data", r == "internal path":
-			if !medium {
-				medium = true
-			}
 		}
 	}
 	switch {

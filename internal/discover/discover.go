@@ -13,6 +13,7 @@ import (
 	"github.com/codejavu-inc/swaggervu/data"
 	"github.com/codejavu-inc/swaggervu/internal/httpclient"
 	"github.com/codejavu-inc/swaggervu/internal/spec"
+	"github.com/codejavu-inc/swaggervu/internal/textutil"
 )
 
 // Hit is a confirmed discovery.
@@ -78,7 +79,7 @@ func probeBase(ctx context.Context, client *httpclient.Client, base, target stri
 	// junk path looks near-identical, it answers 200 for everything — skip.
 	if baselineStatus == 200 {
 		r2, err := client.Get(ctx, base+"/"+randString(21))
-		if err == nil && r2.Status == 200 && similarity(baseline, r2.BodyString()) > 0.90 {
+		if err == nil && r2.Status == 200 && textutil.Similarity(baseline, r2.BodyString()) > 0.90 {
 			return
 		}
 	}
@@ -97,7 +98,7 @@ func probeBase(ctx context.Context, client *httpclient.Client, base, target stri
 		}
 		body := resp.BodyString()
 		// Reject responses too similar to the error baseline (false positive).
-		if baselineStatus == 200 && similarity(body, baseline) > 0.90 {
+		if baselineStatus == 200 && textutil.Similarity(body, baseline) > 0.90 {
 			continue
 		}
 		h := Hit{Target: target, URL: u, Status: resp.Status}
@@ -140,37 +141,4 @@ func randString(n int) string {
 		b[i] = charset[rand.Intn(len(charset))]
 	}
 	return string(b)
-}
-
-// similarity returns a Sørensen–Dice coefficient over character bigrams,
-// a cheap stand-in for Python's difflib.SequenceMatcher ratio.
-func similarity(a, b string) float64 {
-	if a == b {
-		return 1.0
-	}
-	if len(a) < 2 || len(b) < 2 {
-		return 0
-	}
-	bigrams := func(s string) map[string]int {
-		m := make(map[string]int, len(s))
-		for i := 0; i < len(s)-1; i++ {
-			m[s[i:i+2]]++
-		}
-		return m
-	}
-	ma, mb := bigrams(a), bigrams(b)
-	inter := 0
-	for bg, ca := range ma {
-		if cb, ok := mb[bg]; ok {
-			inter += min(ca, cb)
-		}
-	}
-	return 2.0 * float64(inter) / float64((len(a)-1)+(len(b)-1))
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

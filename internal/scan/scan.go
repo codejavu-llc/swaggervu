@@ -14,6 +14,7 @@ import (
 	"github.com/codejavu-inc/swaggervu/internal/requestgen"
 	"github.com/codejavu-inc/swaggervu/internal/secrets"
 	"github.com/codejavu-inc/swaggervu/internal/spec"
+	"github.com/codejavu-inc/swaggervu/internal/textutil"
 )
 
 // largeResponseBytes is the threshold above which a 200 is "interesting".
@@ -27,8 +28,11 @@ type Result struct {
 	Status        int    `json:"status"`
 	ContentLength int    `json:"content_length"`
 	Interesting   bool   `json:"interesting"`
+	// AuthStatus is the status of the authenticated comparison request, set only
+	// in auth-aware mode (Status then holds the unauthenticated status).
+	AuthStatus int `json:"auth_status,omitempty"`
 	// Reasons explains why a result was flagged (e.g. "unauthenticated data",
-	// "stack trace", "secret: AWS Access Key ID"). Empty for uninteresting results.
+	// "broken access control", "stack trace"). Empty for uninteresting results.
 	Reasons []string          `json:"reasons,omitempty"`
 	Secrets []secrets.Finding `json:"secrets,omitempty"`
 }
@@ -41,7 +45,12 @@ type Config struct {
 	// are otherwise skipped as "auth enforced"). It does not change which results
 	// are flagged Interesting or counted by the basepath-fallback heuristic.
 	EmitAll bool
-	GenOpts requestgen.Options
+	// AuthHeaders, when non-empty, enables auth-aware scanning: every endpoint is
+	// probed twice (without and with these headers) to detect broken access
+	// control — operations the spec says need auth that still return data
+	// unauthenticated, and endpoints whose response ignores the token entirely.
+	AuthHeaders map[string]string
+	GenOpts     requestgen.Options
 }
 
 // Run scans a spec and calls onResult for each probed endpoint.
@@ -68,6 +77,15 @@ func Run(ctx context.Context, client *httpclient.Client, s *spec.Spec, cfg Confi
 func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Request, cfg Config, onResult func(Result)) []Result {
 	var mu sync.Mutex
 	var out []Result
+	authMode := len(cfg.AuthHeaders) > 0
+	emit := func(res Result) {
+		mu.Lock()
+		out = append(out, res)
+		mu.Unlock()
+		if onResult != nil {
+			onResult(res)
+		}
+	}
 	httpclient.ForEach(ctx, cfg.Concurrency, reqs, func(ctx context.Context, req requestgen.Request) {
 		headers := map[string]string{}
 		for k, v := range req.Headers {
@@ -76,11 +94,11 @@ func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Requ
 		if req.ContentType != "" {
 			headers["Content-Type"] = req.ContentType
 		}
-		var reqBody io.Reader
-		if req.Body != "" {
-			reqBody = strings.NewReader(req.Body)
+		if authMode {
+			probeAuthAware(ctx, client, req, headers, cfg, emit, onResult)
+			return
 		}
-		resp, err := client.DoWithHeaders(ctx, req.Method, req.URL, reqBody, headers)
+		resp, err := client.DoWithHeaders(ctx, req.Method, req.URL, bodyReader(req), headers)
 		if err != nil {
 			return
 		}
@@ -101,7 +119,6 @@ func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Requ
 		}
 		body := resp.BodyString()
 		found := secrets.Scan(body)
-		leaks := detectLeaks(body)
 		res := Result{
 			Method:        req.Method,
 			URL:           req.URL,
@@ -115,24 +132,98 @@ func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Requ
 		//   - server internals leaked: stack trace / SQL / framework error (any status)
 		//   - a reachable 200 carrying real data — but not a generic HTML app shell,
 		//     which is a common false positive for an SPA's catch-all route.
-		for _, f := range found {
-			res.Reasons = append(res.Reasons, "secret: "+f.Type)
-		}
-		res.Reasons = append(res.Reasons, leaks...)
+		res.Reasons = reasonsFor(found, detectLeaks(body))
 		if resp.Status == 200 && len(resp.Body) >= largeResponseBytes && !isHTMLShell(body) {
 			res.Reasons = append(res.Reasons, "unauthenticated data")
 		}
-		if len(res.Reasons) > 0 {
-			res.Interesting = true
-		}
-		mu.Lock()
-		out = append(out, res)
-		mu.Unlock()
-		if onResult != nil {
-			onResult(res)
-		}
+		res.Interesting = len(res.Reasons) > 0
+		emit(res)
 	})
 	return out
+}
+
+// probeAuthAware fires an endpoint without and with the auth headers and
+// classifies the access-control outcome. Findings are derived from the
+// unauthenticated response (what an anonymous attacker sees); the authenticated
+// response is used only to tell "token is ignored" apart from "genuinely public".
+func probeAuthAware(ctx context.Context, client *httpclient.Client, req requestgen.Request, baseHeaders map[string]string, cfg Config, emit, onResult func(Result)) {
+	unauth, err := client.DoWithHeaders(ctx, req.Method, req.URL, bodyReader(req), baseHeaders)
+	if err != nil {
+		return
+	}
+	authHeaders := map[string]string{}
+	for k, v := range baseHeaders {
+		authHeaders[k] = v
+	}
+	for k, v := range cfg.AuthHeaders {
+		authHeaders[k] = v
+	}
+	var authStatus int
+	var authBody string
+	if authed, err := client.DoWithHeaders(ctx, req.Method, req.URL, bodyReader(req), authHeaders); err == nil {
+		authStatus = authed.Status
+		authBody = authed.BodyString()
+	}
+
+	body := unauth.BodyString()
+	found := secrets.Scan(body)
+	res := Result{
+		Method:        req.Method,
+		URL:           req.URL,
+		Path:          req.Path,
+		Status:        unauth.Status,
+		AuthStatus:    authStatus,
+		ContentLength: len(unauth.Body),
+		Secrets:       found,
+	}
+	res.Reasons = reasonsFor(found, detectLeaks(body))
+	res.Reasons = append(res.Reasons, accessControlReasons(req.RequiresAuth, unauth.Status, len(unauth.Body), body, authStatus, authBody)...)
+	res.Interesting = len(res.Reasons) > 0
+	if res.Interesting || cfg.EmitAll {
+		if res.Interesting {
+			emit(res)
+		} else if onResult != nil {
+			onResult(res)
+		}
+	}
+}
+
+// reasonsFor turns secret findings and leak signatures into reason strings.
+func reasonsFor(found []secrets.Finding, leaks []string) []string {
+	var rs []string
+	for _, f := range found {
+		rs = append(rs, "secret: "+f.Type)
+	}
+	return append(rs, leaks...)
+}
+
+// accessControlReasons classifies the access-control outcome of an auth-aware
+// probe. It only fires when the unauthenticated request returned real data.
+func accessControlReasons(requiresAuth bool, unauthStatus, unauthLen int, unauthBody string, authStatus int, authBody string) []string {
+	if unauthStatus != 200 || unauthLen < largeResponseBytes || isHTMLShell(unauthBody) {
+		return nil
+	}
+	switch {
+	case requiresAuth:
+		// The spec says this operation needs auth, yet an anonymous request got
+		// data back — the strongest broken-access-control signal.
+		return []string{"broken access control"}
+	case authStatus == 200 && textutil.Similarity(unauthBody, authBody) > 0.9:
+		// Authenticated and anonymous responses are near-identical — the token is
+		// ignored, so access control is not actually enforced.
+		return []string{"auth not enforced"}
+	default:
+		return []string{"unauthenticated data"}
+	}
+}
+
+// bodyReader returns a fresh reader for a request body (nil when empty), so the
+// same request can be sent more than once in auth-aware mode.
+func bodyReader(req requestgen.Request) io.Reader {
+	if req.Body == "" {
+		return nil
+	}
+	return strings.NewReader(req.Body)
 }
 
 // leakSignatures are high-signal substrings that reveal server internals

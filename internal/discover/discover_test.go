@@ -20,19 +20,6 @@ func TestBaseURLs(t *testing.T) {
 	}
 }
 
-func TestSimilarity(t *testing.T) {
-	if s := similarity("hello world", "hello world"); s != 1.0 {
-		t.Errorf("identical strings should be 1.0, got %v", s)
-	}
-	if s := similarity("the quick brown fox", "completely different!!"); s > 0.5 {
-		t.Errorf("dissimilar strings should be low, got %v", s)
-	}
-	near := similarity("404 page not found here", "404 page not found there")
-	if near < 0.7 {
-		t.Errorf("near-identical strings should be high, got %v", near)
-	}
-}
-
 func TestRandString(t *testing.T) {
 	a, b := randString(21), randString(21)
 	if len(a) != 21 {

@@ -133,6 +133,9 @@ swaggervu detect -u https://petstore.swagger.io/v2/swagger.json
 swaggervu scan https://petstore.swagger.io/v2/swagger.json --json -o findings.json
 #    ...or a Markdown writeup ready to paste into a report
 swaggervu scan https://petstore.swagger.io/v2/swagger.json --md -o findings.md
+#    ...auth-aware: probe each endpoint with AND without a token to find
+#    broken access control (data the spec says needs auth, but doesn't enforce)
+swaggervu scan https://api.example.com/swagger.json --auth 'Authorization: Bearer TOKEN'
 
 # 6) Find public specs on SwaggerHub and scan them for secrets
 swaggervu osint example.com --scan-secrets
@@ -155,6 +158,9 @@ your own hosted payloads the default without flags, export them (per param):
 export SWAGGERVU_PAYLOAD_CONFIGURL=https://you.surge.sh/test.json
 export SWAGGERVU_PAYLOAD_URL=https://you.surge.sh/test.yaml
 ```
+
+Or pass `--payload PARAM=URL` per run, `--payload-url URL` for all params, or
+`--builtin-payload` to force the self-contained local benign PoC server.
 
 ### What `exploit` checks
 

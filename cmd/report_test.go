@@ -15,9 +15,12 @@ func TestSeverityForReasons(t *testing.T) {
 		want    string
 	}{
 		{[]string{"secret: AWS Access Key ID"}, "High"},
+		{[]string{"broken access control"}, "High"},
+		{[]string{"auth not enforced"}, "Medium"},
 		{[]string{"stack trace"}, "Medium"},
 		{[]string{"unauthenticated data"}, "Medium"},
 		{[]string{"secret: x", "unauthenticated data"}, "High"},
+		{[]string{"broken access control", "auth not enforced"}, "High"},
 		{nil, "Info"},
 	}
 	for _, c := range cases {

@@ -16,6 +16,7 @@ var (
 	scanBase    string
 	scanShowAll bool
 	scanMD      bool
+	scanAuth    []string
 )
 
 var scanCmd = &cobra.Command{
@@ -57,7 +58,11 @@ or secrets. Destructive methods (POST/PUT/PATCH/DELETE) are skipped unless --ris
 			Concurrency: flagConcurrency,
 			IncludeRisk: scanRisk,
 			EmitAll:     scanShowAll,
+			AuthHeaders: parseHeaders(scanAuth),
 			GenOpts:     genOpts,
+		}
+		if len(cfg.AuthHeaders) > 0 {
+			log.Info("auth-aware mode: probing each endpoint with and without auth to detect broken access control")
 		}
 
 		interesting := 0
@@ -98,5 +103,6 @@ func init() {
 	f.BoolVarP(&scanShowAll, "show-all", "V", false, "log every probed request, not just findings (incl. non-200; non-GET methods need --risk)")
 	f.StringVar(&scanBase, "base-url", "", "override the API base/server URL")
 	f.BoolVar(&scanMD, "md", false, "emit a paste-ready Markdown report of findings (use with -o report.md)")
+	f.StringArrayVar(&scanAuth, "auth", nil, "auth header for an authenticated comparison run, repeatable (e.g. --auth 'Authorization: Bearer TOKEN'); enables broken-access-control detection")
 	rootCmd.AddCommand(scanCmd)
 }

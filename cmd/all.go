@@ -28,6 +28,7 @@ var (
 	allScreens string
 	allShowAll bool
 	allMD      bool
+	allAuth    []string
 )
 
 // waybackAutoMax is the largest target count for which the autopilot auto-seeds
@@ -165,7 +166,7 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 			sr := specReport{URL: src, Kind: s.Kind, Title: s.Title, Endpoints: len(eps)}
 			log.Info("auditing %s — %s '%s' (%d endpoints)", src, s.Kind, s.Title, len(eps))
 
-			scan.Run(ctx, sc, s, scan.Config{Concurrency: flagConcurrency, IncludeRisk: allRisk, EmitAll: allShowAll, GenOpts: genOpts},
+			scan.Run(ctx, sc, s, scan.Config{Concurrency: flagConcurrency, IncludeRisk: allRisk, EmitAll: allShowAll, AuthHeaders: parseHeaders(allAuth), GenOpts: genOpts},
 				func(r scan.Result) {
 					if r.Interesting {
 						sr.Interesting = append(sr.Interesting, r)
@@ -316,5 +317,6 @@ func init() {
 	f.BoolVarP(&allShowAll, "show-all", "V", false, "log every probed request, not just findings (incl. non-200; non-GET methods need --risk)")
 	f.StringVar(&allScreens, "screenshots", "", "directory to save exploit screenshot evidence")
 	f.BoolVar(&allMD, "md", false, "emit a paste-ready Markdown report (use with -o report.md)")
+	f.StringArrayVar(&allAuth, "auth", nil, "auth header for an authenticated comparison run, repeatable (e.g. --auth 'Authorization: Bearer TOKEN'); enables broken-access-control detection")
 	rootCmd.AddCommand(allCmd)
 }

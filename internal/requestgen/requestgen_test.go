@@ -86,6 +86,35 @@ func TestPathParamSubstituted(t *testing.T) {
 	}
 }
 
+const securedSpec = `{
+  "openapi": "3.0.1",
+  "info": {"title": "Secured", "version": "1.0"},
+  "servers": [{"url": "https://api.example.com"}],
+  "security": [{"bearerAuth": []}],
+  "paths": {
+    "/private": {"get": {"responses": {"200": {"description": "ok"}}}},
+    "/public":  {"get": {"security": [], "responses": {"200": {"description": "ok"}}}}
+  }
+}`
+
+func TestRequiresAuthFromSpec(t *testing.T) {
+	s, err := spec.Load([]byte(securedSpec), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqs := Build(s, DefaultOptions())
+	got := map[string]bool{}
+	for _, r := range reqs {
+		got[r.Path] = r.RequiresAuth
+	}
+	if !got["/private"] {
+		t.Error("/private inherits document-level security and must require auth")
+	}
+	if got["/public"] {
+		t.Error("/public has explicit empty security and must NOT require auth")
+	}
+}
+
 func TestContextAwareBodyValues(t *testing.T) {
 	s, _ := spec.Load([]byte(v3Spec), "")
 	opts := DefaultOptions()

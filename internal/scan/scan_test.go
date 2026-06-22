@@ -1,6 +1,43 @@
 package scan
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func bigJSON(seed string) string {
+	// Comfortably >= largeResponseBytes of plausible data.
+	return `{"data":"` + strings.Repeat(seed, 400) + `"}`
+}
+
+func TestAccessControlReasons(t *testing.T) {
+	data := bigJSON("a")
+	other := bigJSON("z")
+
+	// Spec requires auth, but anon got data -> broken access control.
+	if got := accessControlReasons(true, 200, len(data), data, 200, data); len(got) != 1 || got[0] != "broken access control" {
+		t.Errorf("requiresAuth case: got %v", got)
+	}
+	// No spec requirement, anon == authed -> token ignored.
+	if got := accessControlReasons(false, 200, len(data), data, 200, data); len(got) != 1 || got[0] != "auth not enforced" {
+		t.Errorf("token-ignored case: got %v", got)
+	}
+	// No spec requirement, anon != authed -> just unauthenticated data.
+	if got := accessControlReasons(false, 200, len(data), data, 200, other); len(got) != 1 || got[0] != "unauthenticated data" {
+		t.Errorf("plain-exposure case: got %v", got)
+	}
+	// Properly protected: anon 401 -> nothing.
+	if got := accessControlReasons(true, 401, 0, "", 200, data); got != nil {
+		t.Errorf("protected case should be empty, got %v", got)
+	}
+	// 200 but tiny / HTML shell -> not a finding.
+	if got := accessControlReasons(true, 200, 10, "{}", 200, data); got != nil {
+		t.Errorf("small body should be empty, got %v", got)
+	}
+	if got := accessControlReasons(true, 200, 5000, "<!DOCTYPE html><html>"+strings.Repeat("x", 5000), 200, data); got != nil {
+		t.Errorf("html shell should be empty, got %v", got)
+	}
+}
 
 func TestDetectLeaks(t *testing.T) {
 	cases := map[string]string{
