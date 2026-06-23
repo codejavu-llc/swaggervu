@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.1]
+
+### Fixed
+- Corrected the Go module path to `github.com/codejavu-llc/swaggervu` so
+  `go install github.com/codejavu-llc/swaggervu@latest` works. The `v1.0.0`
+  tag shipped a `go.mod` still declaring the old `codejavu-inc` path, which
+  caused a "module declares its path as …" version conflict.
+
 ### Added
 - **Auth-aware scanning** (`scan`/`all` `--auth "Header: Value"`, repeatable):
   probes each endpoint without and with the token to detect **broken access
@@ -38,5 +46,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `prepare` curl/sqlmap command emission per endpoint.
 - Global rate-limited, concurrent HTTP client shared across modules.
 
-[Unreleased]: https://github.com/codejavu-llc/swaggervu/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/codejavu-llc/swaggervu/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/codejavu-llc/swaggervu/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/codejavu-llc/swaggervu/releases/tag/v1.0.0
