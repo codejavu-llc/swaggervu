@@ -30,13 +30,13 @@ one cohesive tool:
 | Capability | What it does |
 |---|---|
 | 🔭 **Discover** | Probe up to thousands of hosts with a curated flagship wordlist, confirm hits with content matchers, and kill false positives with random-path baselining. |
-| 🕰️ **Wayback** | Harvest a domain's archived API URLs from the Wayback Machine and feed them straight into discovery. |
-| 🛰️ **OSINT** | Find public definitions on SwaggerHub by domain/keyword and scan them for leaked secrets. |
+| 🕰️ **Wayback** | Harvest a domain's archived API URLs from the Wayback Machine and feed them straight into discovery — `discover --wayback`. |
+| 🛰️ **OSINT** | Find public definitions on SwaggerHub by domain/keyword — `discover --osint`. |
 | 🧬 **Detect / Parse** | Identify Swagger 2.0, OpenAPI 3.0 &amp; 3.1 from JSON, YAML, or JS-embedded specs — auto-converting v2→v3. |
 | 🎯 **Scan** | Generate one request per operation from the spec, skip `401/403`, and flag endpoints that return data without auth (broken access control / data exposure). |
-| 🔑 **Secrets** | Regex corpus (TruffleHog-style + SwaggerSpy) over specs and live responses. |
+| 🔑 **Secrets** | Regex corpus (TruffleHog-style + SwaggerSpy) over the spec document and live responses — runs automatically inside `scan` and `all`. |
 | 🧪 **Exploit** | Confirm Swagger-UI `configUrl` / `url` DOM XSS and spec-driven HTML injection with a **real headless browser** and screenshot evidence — opt-in &amp; gated. Reads the browser console to distinguish a genuine miss from a **CORS-blocked** PoC fetch, and accepts your own payload host. |
-| 🛠️ **Prepare** | Emit ready-to-run `curl` / `sqlmap` commands per endpoint for manual testing. |
+| 🛠️ **Prepare** | Emit ready-to-run `curl` / `sqlmap` commands per endpoint for manual testing — `scan --emit curl\|sqlmap`. |
 
 Built on `kin-openapi` (parsing), `chromedp` (headless confirmation), and a global,
 rate-limited worker pool that comfortably handles large target lists.
@@ -100,7 +100,7 @@ request and its status (incl. non-200 and `401`/`403`). Note that non-GET method
 only generated with `--risk`, so `-V` alone shows `GET` requests.
 
 Wayback seeding runs only for small runs (≤20 targets) — for a big subdomain list it is
-skipped (you already have the hosts); use the standalone `wayback` command if you want it.
+skipped (you already have the hosts); run `discover --wayback` on specific hosts if you want it.
 The exploit phase confirms with a benign built-in PoC and is skipped gracefully if no
 Chrome/Chromium is installed. A run prints a live, phased log and a final summary:
 
@@ -123,8 +123,8 @@ swaggervu discover -l targets.txt -c 200 --paths-only -o found.txt
 # 2) Same, but strip the domain (path-only wordlist output)
 swaggervu discover -l targets.txt --paths-only --no-domain -o paths.txt
 
-# 3) Pull a target's archived API URLs from the Wayback Machine
-swaggervu wayback example.com -o archived.txt
+# 3) Seed discovery with archived API URLs from the Wayback Machine
+swaggervu discover example.com --wayback -o found.txt
 
 # 4) Identify a definition and list its endpoints
 swaggervu detect -u https://petstore.swagger.io/v2/swagger.json
@@ -137,8 +137,8 @@ swaggervu scan https://petstore.swagger.io/v2/swagger.json --md -o findings.md
 #    broken access control (data the spec says needs auth, but doesn't enforce)
 swaggervu scan https://api.example.com/swagger.json --auth 'Authorization: Bearer TOKEN'
 
-# 6) Find public specs on SwaggerHub and scan them for secrets
-swaggervu osint example.com --scan-secrets
+# 6) Seed discovery with public specs from SwaggerHub (OSINT)
+swaggervu discover example.com --osint
 
 # 7) Confirm Swagger-UI XSS with a headless browser (authorized targets only)
 swaggervu discover -l scope.txt --paths-only | swaggervu exploit -l /dev/stdin --confirm --screenshots ./evidence
@@ -190,6 +190,7 @@ swaggervu discover -l targets.txt \
   --rate 300        # global cap of 300 req/s
   --https-only      # restrict to https (both schemes are probed by default)
   --wayback         # also seed candidates from the Wayback Machine
+  --osint           # also seed candidates from SwaggerHub (OSINT)
   --first-only      # stop at the first hit per host (faster)
   --paths-only      # output only matched URLs/paths
   --no-domain       # ...with the domain stripped
@@ -217,17 +218,24 @@ Only test systems you own or are explicitly authorized to assess.
 
 ```
 all        Autopilot: one command runs every phase — discover, audit, secrets, exploit
-discover   Find exposed Swagger/OpenAPI endpoints across many targets
-wayback    Harvest archived API/Swagger URLs for a domain
-osint      Discover public API definitions on SwaggerHub
+discover   Find exposed Swagger/OpenAPI endpoints (sources: wordlist, --wayback, --osint)
 detect     Identify an API definition's type/version and list endpoints
-scan       Audit an API: fire one request per operation, flag unauth & data leaks
-secrets    Scan an API definition for leaked credentials and secrets
-prepare    Emit ready-to-run curl/sqlmap commands for every endpoint
+scan       Audit an API: unauth/data-leak + spec & response secrets (--emit curl|sqlmap)
 exploit    Confirm Swagger-UI client-side CVEs (gated, headless-confirmed)
 ```
 
-Run `swaggervu <command> --help` for full flags. Global flags (`-c`, `--rate`,
+Five focused commands. Capabilities that used to be their own commands are now
+flags on these:
+
+| Old command | Now |
+|---|---|
+| `wayback <domain>` | `discover <domain> --wayback` |
+| `osint <term>` | `discover <term> --osint` |
+| `secrets <spec>` | automatic in `scan` (spec document + responses) |
+| `prepare <spec>` | `scan <spec> --emit curl\|sqlmap` |
+
+The old names still work (hidden) for script compatibility. Run
+`swaggervu <command> --help` for full flags. Global flags (`-c`, `--rate`,
 `-t`, `-k`, `--proxy`, `-H`, `-A`, `--random-agent`, `-o`, `--json`, `-q`) apply
 to every command.
 

@@ -13,9 +13,10 @@ var (
 )
 
 var osintCmd = &cobra.Command{
-	Use:   "osint <search-term>",
-	Short: "Discover public API definitions on SwaggerHub by domain/keyword",
-	Args:  cobra.MinimumNArgs(1),
+	Use:    "osint <search-term>",
+	Short:  "Discover public API definitions on SwaggerHub by domain/keyword",
+	Hidden: true, // folded into `discover --osint`; kept as a compat alias
+	Args:   cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		term := args[0]
 		log.Banner(version)

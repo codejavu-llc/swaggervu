@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/codejavu-llc/swaggervu/internal/detect"
 	"github.com/codejavu-llc/swaggervu/internal/output"
 	"github.com/codejavu-llc/swaggervu/internal/requestgen"
 	"github.com/codejavu-llc/swaggervu/internal/scan"
+	"github.com/codejavu-llc/swaggervu/internal/secrets"
+	"github.com/codejavu-llc/swaggervu/internal/spec"
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +20,7 @@ var (
 	scanShowAll bool
 	scanMD      bool
 	scanAuth    []string
+	scanEmit    string
 )
 
 var scanCmd = &cobra.Command{
@@ -24,7 +28,11 @@ var scanCmd = &cobra.Command{
 	Short: "Audit an API: fire one request per operation, flag unauth & data leaks",
 	Long: `Generate a request for every operation in the spec and report which
 endpoints are reachable without auth (401/403 are skipped) and which leak data
-or secrets. Destructive methods (POST/PUT/PATCH/DELETE) are skipped unless --risk is set.`,
+or secrets. The spec document itself is also scanned for hardcoded credentials.
+Destructive methods (POST/PUT/PATCH/DELETE) are skipped unless --risk is set.
+
+Use --emit curl|sqlmap to print ready-to-run commands instead of scanning (no
+requests are sent).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		src := scanURL
 		if src == "" && len(args) > 0 {
@@ -39,7 +47,29 @@ or secrets. Destructive methods (POST/PUT/PATCH/DELETE) are skipped unless --ris
 		if err != nil {
 			return err
 		}
+
+		// --emit is print-only: emit ready-to-run commands and fire nothing.
+		// This must short-circuit before any network/secret work so that, e.g.,
+		// `scan --emit sqlmap --risk` prints destructive requests without sending.
+		if scanEmit != "" {
+			if scanEmit != "curl" && scanEmit != "sqlmap" {
+				return fmt.Errorf("--emit must be 'curl' or 'sqlmap', got %q", scanEmit)
+			}
+			opts := requestgen.DefaultOptions()
+			opts.IncludeRisk = scanRisk
+			for _, r := range requestgen.Build(s, opts) {
+				fmt.Println(commandFor(scanEmit, r))
+			}
+			return nil
+		}
 		log.Info("loaded %s '%s' — auditing endpoints", s.Kind, s.Title)
+
+		// Secrets embedded in the spec document itself (titles, descriptions,
+		// examples, server URLs). The per-response secret scan happens inside
+		// scan.Run; this catches creds hardcoded in the definition — matching `all`.
+		for _, f := range scanSpecDocument(s) {
+			log.Warn("spec secret %s: %s", f.Type, f.Match)
+		}
 
 		client, err := buildClient(false)
 		if err != nil {
@@ -96,9 +126,24 @@ or secrets. Destructive methods (POST/PUT/PATCH/DELETE) are skipped unless --ris
 	},
 }
 
+// scanSpecDocument scans the spec's own text (title, endpoint paths, and the
+// raw definition) for hardcoded credentials. Mirrors the standalone `secrets`.
+func scanSpecDocument(s *spec.Spec) []secrets.Finding {
+	var corpus strings.Builder
+	corpus.WriteString(s.Title + "\n")
+	for _, e := range detect.Endpoints(s) {
+		corpus.WriteString(e + "\n")
+	}
+	if b, err := marshalRaw(s.Raw); err == nil {
+		corpus.Write(b)
+	}
+	return secrets.Scan(corpus.String())
+}
+
 func init() {
 	f := scanCmd.Flags()
 	f.StringVarP(&scanURL, "url", "u", "", "URL or file of the API definition")
+	f.StringVar(&scanEmit, "emit", "", "print-only: emit ready-to-run commands instead of scanning ('curl' or 'sqlmap')")
 	f.BoolVar(&scanRisk, "risk", false, "include non-GET methods (POST/PUT/PATCH/DELETE) — use with care")
 	f.BoolVarP(&scanShowAll, "show-all", "V", false, "log every probed request, not just findings (incl. non-200; non-GET methods need --risk)")
 	f.StringVar(&scanBase, "base-url", "", "override the API base/server URL")

@@ -6,9 +6,13 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/codejavu-llc/swaggervu/data"
 	"github.com/codejavu-llc/swaggervu/internal/discover"
+	"github.com/codejavu-llc/swaggervu/internal/osint"
 	"github.com/codejavu-llc/swaggervu/internal/output"
 	"github.com/codejavu-llc/swaggervu/internal/wayback"
 	"github.com/spf13/cobra"
@@ -24,6 +28,8 @@ var (
 	discPathsOnly bool
 	discNoDomain  bool
 	discWayback   bool
+	discOSINT     bool
+	discOSINTPgs  int
 )
 
 var discoverCmd = &cobra.Command{
@@ -31,7 +37,10 @@ var discoverCmd = &cobra.Command{
 	Short: "Find exposed Swagger/OpenAPI endpoints across many targets",
 	Long: `Probe targets with the flagship wordlist and confirm hits via content
 matchers + random-path false-positive suppression. Targets may be hostnames or
-full URLs, supplied as args, with -l file, or piped on stdin.`,
+full URLs, supplied as args, with -l file, or piped on stdin.
+
+Extra sources (off by default) seed additional candidate spec URLs, which are
+probed directly: --wayback (archived URLs) and --osint (public SwaggerHub specs).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if discListPaths {
 			for _, p := range data.PathsSorted() {
@@ -46,11 +55,16 @@ full URLs, supplied as args, with -l file, or piped on stdin.`,
 			return err
 		}
 
-		// Optionally seed candidate URLs from the Wayback Machine.
+		// Seed candidate spec/UI URLs from extra sources. These are already
+		// specific URLs (not hosts), so they are direct-probed, not path-probed.
+		var candidates []string
 		if discWayback {
-			targets = append(targets, harvestWayback(cmd.Context(), targets)...)
+			candidates = append(candidates, harvestWayback(cmd.Context(), targets)...)
 		}
-		if len(targets) == 0 {
+		if discOSINT {
+			candidates = append(candidates, harvestOSINT(cmd.Context(), targets)...)
+		}
+		if len(targets) == 0 && len(candidates) == 0 {
 			return fmt.Errorf("no targets provided (use args, -l file, or stdin)")
 		}
 
@@ -80,9 +94,28 @@ full URLs, supplied as args, with -l file, or piped on stdin.`,
 			cfg.Paths = paths
 		}
 
-		count := 0
-		discover.Run(cmd.Context(), client, targets, cfg, func(h discover.Hit) {
-			count++
+		// Live progress on stderr: targets probed / total, hits, elapsed. The
+		// engine calls Progress once per completed target; throttle redraws but
+		// always draw the final (done==total) frame so it ends at 100%.
+		var hits int64
+		start := time.Now()
+		var drawMu sync.Mutex
+		var lastDraw time.Time
+		cfg.Progress = func(done, total int) {
+			drawMu.Lock()
+			if done != total && time.Since(lastDraw) < 150*time.Millisecond {
+				drawMu.Unlock()
+				return
+			}
+			lastDraw = time.Now()
+			drawMu.Unlock()
+			log.Progress("probing %d/%d · %d hit(s) · %s",
+				done, total, atomic.LoadInt64(&hits), time.Since(start).Round(time.Second))
+		}
+		defer log.ProgressDone() // safety net for early return / Ctrl-C
+
+		emitHit := func(h discover.Hit) {
+			atomic.AddInt64(&hits, 1)
 			kind := string(h.Kind)
 			if kind == "" {
 				kind = "ui"
@@ -97,10 +130,41 @@ full URLs, supplied as args, with -l file, or piped on stdin.`,
 			} else {
 				sink.WriteLine(h.URL)
 			}
-		})
-		log.Info("discovery complete: %d endpoint(s) found", count)
+		}
+
+		// Path-probe bare hosts/URLs with the wordlist; direct-probe the
+		// already-specific candidate URLs from Wayback/OSINT.
+		if len(targets) > 0 {
+			discover.Run(cmd.Context(), client, targets, cfg, emitHit)
+		}
+		if len(candidates) > 0 {
+			discover.ProbeURLs(cmd.Context(), client, candidates, flagConcurrency, emitHit, cfg.Progress)
+		}
+		log.ProgressDone()
+		log.Info("discovery complete: %d endpoint(s) found in %s",
+			atomic.LoadInt64(&hits), time.Since(start).Round(time.Second))
 		return nil
 	},
+}
+
+// harvestOSINT collects public spec URLs from SwaggerHub for each target term.
+func harvestOSINT(ctx context.Context, targets []string) []string {
+	client, err := buildClient(true)
+	if err != nil {
+		return nil
+	}
+	var extra []string
+	for _, t := range targets {
+		n := 0
+		if _, err := osint.Search(ctx, client, t, discOSINTPgs, func(sp osint.Spec) {
+			extra = append(extra, sp.URL)
+			n++
+		}); err != nil {
+			continue
+		}
+		log.Info("osint: %d SwaggerHub spec(s) for %s", n, t)
+	}
+	return extra
 }
 
 // harvestWayback pulls archived API URLs for each target domain.
@@ -167,5 +231,7 @@ func init() {
 	f.BoolVar(&discPathsOnly, "paths-only", false, "output only matched paths/URLs")
 	f.BoolVar(&discNoDomain, "no-domain", false, "with --paths-only, strip the domain (path only)")
 	f.BoolVar(&discWayback, "wayback", false, "also seed candidates from the Wayback Machine")
+	f.BoolVar(&discOSINT, "osint", false, "also seed candidates from SwaggerHub (OSINT)")
+	f.IntVar(&discOSINTPgs, "osint-pages", 5, "max SwaggerHub result pages for --osint (100/page; 0 = all)")
 	rootCmd.AddCommand(discoverCmd)
 }

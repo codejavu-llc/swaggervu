@@ -40,6 +40,9 @@ func isTTY(f *os.File) bool {
 type Logger struct {
 	Quiet bool
 	mu    sync.Mutex
+	// progressActive is true while a transient \r status line is on screen, so
+	// the next normal line clears it first instead of writing over it.
+	progressActive bool
 }
 
 func (l *Logger) line(prefix, color, format string, a ...any) {
@@ -48,7 +51,36 @@ func (l *Logger) line(prefix, color, format string, a ...any) {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.progressActive {
+		fmt.Fprint(os.Stderr, "\r\033[K")
+		l.progressActive = false
+	}
 	fmt.Fprintf(os.Stderr, "%s %s\n", colorize(color, prefix), fmt.Sprintf(format, a...))
+}
+
+// Progress draws a transient single-line status to stderr, overwriting the
+// previous one (carriage return, no newline). It is a no-op when quiet or when
+// stderr is not a TTY, keeping redirected/piped logs clean. Call ProgressDone
+// to terminate the line. Safe for concurrent use.
+func (l *Logger) Progress(format string, a ...any) {
+	if l.Quiet || !colorEnabled {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	fmt.Fprintf(os.Stderr, "\r\033[K%s %s", colorize(cCyan, "[*]"), fmt.Sprintf(format, a...))
+	l.progressActive = true
+}
+
+// ProgressDone terminates an active progress line with a newline so subsequent
+// output starts cleanly. No-op if no progress line is active.
+func (l *Logger) ProgressDone() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.progressActive {
+		fmt.Fprintln(os.Stderr)
+		l.progressActive = false
+	}
 }
 
 // Status renders an HTTP status code colored by class (when output is a TTY):

@@ -15,9 +15,10 @@ var (
 )
 
 var prepareCmd = &cobra.Command{
-	Use:   "prepare [url|file]",
-	Short: "Emit ready-to-run curl/sqlmap commands for every endpoint",
-	Long:  `Generate request templates per operation for manual testing in curl or sqlmap.`,
+	Use:    "prepare [url|file]",
+	Short:  "Emit ready-to-run curl/sqlmap commands for every endpoint",
+	Long:   `Generate request templates per operation for manual testing in curl or sqlmap.`,
+	Hidden: true, // folded into `scan --emit curl|sqlmap`; kept as a compat alias
 	RunE: func(cmd *cobra.Command, args []string) error {
 		src := prepURL
 		if src == "" && len(args) > 0 {

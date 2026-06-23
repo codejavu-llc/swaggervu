@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -15,9 +16,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// version is the build version. It defaults to a dev value and is overridden at
-// release time via -ldflags "-X .../cmd.version=<tag>" (see .goreleaser.yaml).
-var version = "1.0.0"
+// ldflagVersion is injected at release time via
+// -ldflags "-X .../cmd.ldflagVersion=<tag>" (see .goreleaser.yaml). It is empty
+// for non-release builds such as `go install`.
+var ldflagVersion string
+
+// version is the resolved build version shown in the banner and `--version`.
+var version = resolveVersion()
+
+// resolveVersion prefers the release ldflag, then falls back to the module
+// version the Go toolchain embeds for `go install module@vX.Y.Z` builds, and
+// finally to "dev". The result is normalized to a bare, "v"-less form so the
+// banner ("v"+version) and `--version` agree across all build paths.
+func resolveVersion() string {
+	v := ldflagVersion
+	if v == "" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+			v = info.Main.Version
+		}
+	}
+	if v == "" {
+		v = "dev"
+	}
+	return strings.TrimPrefix(v, "v")
+}
 
 // Global flags shared across subcommands.
 var (
@@ -47,6 +69,9 @@ for ensuring you have permission to test every target you supply.`,
 	Version:       version,
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	// Keep shell completion working, but hide the auto-generated `completion`
+	// subcommand from help to keep the command list focused.
+	CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		log.Quiet = flagQuiet
 	},

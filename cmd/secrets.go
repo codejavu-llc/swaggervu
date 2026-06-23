@@ -15,8 +15,9 @@ func marshalRaw(m map[string]any) ([]byte, error) { return json.Marshal(m) }
 var secretsURL string
 
 var secretsCmd = &cobra.Command{
-	Use:   "secrets [url|file]",
-	Short: "Scan an API definition for leaked credentials and secrets",
+	Use:    "secrets [url|file]",
+	Short:  "Scan an API definition for leaked credentials and secrets",
+	Hidden: true, // folded into `scan` (auto); kept as the no-network, file-only alias
 	RunE: func(cmd *cobra.Command, args []string) error {
 		src := secretsURL
 		if src == "" && len(args) > 0 {

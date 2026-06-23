@@ -83,6 +83,9 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 		report := &allReport{Domains: targets}
 
 		// ---- Seed candidates from the Wayback Machine (read-only) --------
+		// Archived URLs are already specific spec/UI URLs, so they are
+		// direct-probed below (not appended to targets, which get path-probed).
+		var waybackURLs []string
 		if len(targets) <= waybackAutoMax {
 			wc, _ := buildClient(true)
 			for _, t := range targets {
@@ -91,7 +94,7 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 				}
 				if urls, err := wayback.Fetch(ctx, wc, t); err == nil && len(urls) > 0 {
 					log.Info("wayback: +%d archived API URL(s) for %s", len(urls), t)
-					targets = append(targets, urls...)
+					waybackURLs = append(waybackURLs, urls...)
 				}
 			}
 		} else {
@@ -107,27 +110,39 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 		specURLs := map[string]bool{}
 		var uiPages []string
 		uiSeen := map[string]bool{}
+		var hits atomic.Int64
+		dStart := time.Now()
 		var lastProg atomic.Int64
 		progress := func(done, total int) {
-			now := time.Now().Unix()
+			now := time.Now().UnixMilli()
 			prev := lastProg.Load()
-			if done == total || (now-prev >= 2 && lastProg.CompareAndSwap(prev, now)) {
-				log.Info("  ...probed %d/%d host(s)", done, total)
+			if done == total || (now-prev >= 150 && lastProg.CompareAndSwap(prev, now)) {
+				log.Progress("phase 1/3 · probing %d/%d hosts · %d hit(s) · %s",
+					done, total, hits.Load(), time.Since(dStart).Round(time.Second))
 			}
 		}
-		discover.Run(ctx, dc, targets, discover.Config{Concurrency: flagConcurrency, Mixed: true, Progress: progress},
-			func(h discover.Hit) {
-				if h.IsSpec {
-					if !specURLs[h.URL] {
-						specURLs[h.URL] = true
-						log.Good("spec: %s [%s] %s", h.URL, h.Kind, h.Title)
-					}
-				} else if !uiSeen[h.URL] {
-					uiSeen[h.URL] = true
-					uiPages = append(uiPages, h.URL)
-					log.Good("ui:   %s", h.URL)
+		onHit := func(h discover.Hit) {
+			if h.IsSpec {
+				if !specURLs[h.URL] {
+					specURLs[h.URL] = true
+					hits.Add(1)
+					log.Good("spec: %s [%s] %s", h.URL, h.Kind, h.Title)
 				}
-			})
+			} else if !uiSeen[h.URL] {
+				uiSeen[h.URL] = true
+				uiPages = append(uiPages, h.URL)
+				hits.Add(1)
+				log.Good("ui:   %s", h.URL)
+			}
+		}
+		// Path-probe the user's hosts with the wordlist; direct-probe the
+		// already-specific Wayback candidate URLs.
+		discover.Run(ctx, dc, targets, discover.Config{Concurrency: flagConcurrency, Mixed: true, Progress: progress}, onHit)
+		if len(waybackURLs) > 0 {
+			discover.ProbeURLs(ctx, dc, waybackURLs, flagConcurrency, onHit, progress)
+		}
+		log.ProgressDone()
+		log.Info("discovery complete: %d endpoint(s) found in %s", hits.Load(), time.Since(dStart).Round(time.Second))
 		report.UIPages = uiPages
 
 		// Promote UI pages to specs by following them (static + headless fallback).

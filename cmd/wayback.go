@@ -7,9 +7,10 @@ import (
 )
 
 var waybackCmd = &cobra.Command{
-	Use:   "wayback <domain>",
-	Short: "Harvest archived API/Swagger URLs for a domain from the Wayback Machine",
-	Args:  cobra.MinimumNArgs(1),
+	Use:    "wayback <domain>",
+	Short:  "Harvest archived API/Swagger URLs for a domain from the Wayback Machine",
+	Hidden: true, // folded into `discover --wayback`; kept as a compat alias
+	Args:   cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		log.Banner(version)
 		client, err := buildClient(true)
