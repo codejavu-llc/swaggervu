@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"github.com/codejavu-inc/swaggervu/internal/output"
-	"github.com/codejavu-inc/swaggervu/internal/wayback"
+	"github.com/codejavu-llc/swaggervu/internal/output"
+	"github.com/codejavu-llc/swaggervu/internal/wayback"
 	"github.com/spf13/cobra"
 )
 

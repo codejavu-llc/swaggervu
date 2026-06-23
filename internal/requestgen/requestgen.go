@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/codejavu-inc/swaggervu/internal/spec"
+	"github.com/codejavu-llc/swaggervu/internal/spec"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 

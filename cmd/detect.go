@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/codejavu-inc/swaggervu/internal/browser"
-	"github.com/codejavu-inc/swaggervu/internal/detect"
-	"github.com/codejavu-inc/swaggervu/internal/spec"
+	"github.com/codejavu-llc/swaggervu/internal/browser"
+	"github.com/codejavu-llc/swaggervu/internal/detect"
+	"github.com/codejavu-llc/swaggervu/internal/spec"
 	"github.com/spf13/cobra"
 )
 

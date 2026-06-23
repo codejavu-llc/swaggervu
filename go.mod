@@ -1,4 +1,4 @@
-module github.com/codejavu-inc/swaggervu
+module github.com/codejavu-llc/swaggervu
 
 go 1.26
 

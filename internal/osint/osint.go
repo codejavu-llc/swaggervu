@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/codejavu-inc/swaggervu/internal/httpclient"
+	"github.com/codejavu-llc/swaggervu/internal/httpclient"
 )
 
 // Spec is a public definition found on SwaggerHub.

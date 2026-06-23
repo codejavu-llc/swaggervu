@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"github.com/codejavu-inc/swaggervu/internal/osint"
-	"github.com/codejavu-inc/swaggervu/internal/output"
-	"github.com/codejavu-inc/swaggervu/internal/secrets"
+	"github.com/codejavu-llc/swaggervu/internal/osint"
+	"github.com/codejavu-llc/swaggervu/internal/output"
+	"github.com/codejavu-llc/swaggervu/internal/secrets"
 	"github.com/spf13/cobra"
 )
 

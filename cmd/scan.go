@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/codejavu-inc/swaggervu/internal/output"
-	"github.com/codejavu-inc/swaggervu/internal/requestgen"
-	"github.com/codejavu-inc/swaggervu/internal/scan"
+	"github.com/codejavu-llc/swaggervu/internal/output"
+	"github.com/codejavu-llc/swaggervu/internal/requestgen"
+	"github.com/codejavu-llc/swaggervu/internal/scan"
 	"github.com/spf13/cobra"
 )
 

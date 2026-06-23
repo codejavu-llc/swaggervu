@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/codejavu-inc/swaggervu/data"
-	"github.com/codejavu-inc/swaggervu/internal/discover"
-	"github.com/codejavu-inc/swaggervu/internal/output"
-	"github.com/codejavu-inc/swaggervu/internal/wayback"
+	"github.com/codejavu-llc/swaggervu/data"
+	"github.com/codejavu-llc/swaggervu/internal/discover"
+	"github.com/codejavu-llc/swaggervu/internal/output"
+	"github.com/codejavu-llc/swaggervu/internal/wayback"
 	"github.com/spf13/cobra"
 )
 

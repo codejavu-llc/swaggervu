@@ -10,11 +10,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/codejavu-inc/swaggervu/internal/httpclient"
-	"github.com/codejavu-inc/swaggervu/internal/requestgen"
-	"github.com/codejavu-inc/swaggervu/internal/secrets"
-	"github.com/codejavu-inc/swaggervu/internal/spec"
-	"github.com/codejavu-inc/swaggervu/internal/textutil"
+	"github.com/codejavu-llc/swaggervu/internal/httpclient"
+	"github.com/codejavu-llc/swaggervu/internal/requestgen"
+	"github.com/codejavu-llc/swaggervu/internal/secrets"
+	"github.com/codejavu-llc/swaggervu/internal/spec"
+	"github.com/codejavu-llc/swaggervu/internal/textutil"
 )
 
 // largeResponseBytes is the threshold above which a 200 is "interesting".

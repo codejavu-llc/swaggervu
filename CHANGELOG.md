@@ -38,5 +38,5 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `prepare` curl/sqlmap command emission per endpoint.
 - Global rate-limited, concurrent HTTP client shared across modules.
 
-[Unreleased]: https://github.com/codejavu-inc/swaggervu/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/codejavu-inc/swaggervu/releases/tag/v1.0.0
+[Unreleased]: https://github.com/codejavu-llc/swaggervu/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/codejavu-llc/swaggervu/releases/tag/v1.0.0

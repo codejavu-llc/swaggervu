@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/codejavu-inc/swaggervu/internal/requestgen"
+	"github.com/codejavu-llc/swaggervu/internal/requestgen"
 	"github.com/spf13/cobra"
 )
 

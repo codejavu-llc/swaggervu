@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codejavu-inc/swaggervu/internal/spec"
+	"github.com/codejavu-llc/swaggervu/internal/spec"
 )
 
 const v3Spec = `{

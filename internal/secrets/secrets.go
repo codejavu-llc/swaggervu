@@ -3,7 +3,7 @@
 package secrets
 
 import (
-	"github.com/codejavu-inc/swaggervu/data"
+	"github.com/codejavu-llc/swaggervu/data"
 )
 
 // Finding is a single secret match.

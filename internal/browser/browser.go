@@ -12,7 +12,7 @@ import (
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
-	"github.com/codejavu-inc/swaggervu/internal/spec"
+	"github.com/codejavu-llc/swaggervu/internal/spec"
 )
 
 // specURLHint matches response URLs that plausibly carry an API definition.

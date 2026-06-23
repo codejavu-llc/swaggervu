@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/codejavu-inc/swaggervu/internal/scan"
-	"github.com/codejavu-inc/swaggervu/internal/spec"
+	"github.com/codejavu-llc/swaggervu/internal/scan"
+	"github.com/codejavu-llc/swaggervu/internal/spec"
 )
 
 // severity maps a finding's reasons to a coarse severity used in reports.

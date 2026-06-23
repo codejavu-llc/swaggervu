@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/codejavu-inc/swaggervu/data"
-	"github.com/codejavu-inc/swaggervu/internal/httpclient"
-	"github.com/codejavu-inc/swaggervu/internal/spec"
+	"github.com/codejavu-llc/swaggervu/data"
+	"github.com/codejavu-llc/swaggervu/internal/httpclient"
+	"github.com/codejavu-llc/swaggervu/internal/spec"
 )
 
 // Result is the outcome of fingerprinting a single URL.

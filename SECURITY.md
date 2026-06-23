@@ -22,7 +22,7 @@ assess. Misuse may be illegal.
 If you find a security issue **in SwaggerVu itself** (not in a target you
 scanned), please report it privately:
 
-- Open a [GitHub Security Advisory](https://github.com/codejavu-inc/swaggervu/security/advisories/new), or
+- Open a [GitHub Security Advisory](https://github.com/codejavu-llc/swaggervu/security/advisories/new), or
 - Email the maintainers (see repository profile).
 
 Please do not open a public issue for security-sensitive reports. We aim to

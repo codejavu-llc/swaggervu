@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/codejavu-inc/swaggervu/internal/httpclient"
-	"github.com/codejavu-inc/swaggervu/internal/output"
+	"github.com/codejavu-llc/swaggervu/internal/httpclient"
+	"github.com/codejavu-llc/swaggervu/internal/output"
 	"github.com/spf13/cobra"
 )
 

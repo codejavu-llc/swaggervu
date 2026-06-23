@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codejavu-inc/swaggervu/internal/scan"
-	"github.com/codejavu-inc/swaggervu/internal/secrets"
-	"github.com/codejavu-inc/swaggervu/internal/spec"
+	"github.com/codejavu-llc/swaggervu/internal/scan"
+	"github.com/codejavu-llc/swaggervu/internal/secrets"
+	"github.com/codejavu-llc/swaggervu/internal/spec"
 )
 
 func TestSeverityForReasons(t *testing.T) {

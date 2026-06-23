@@ -10,10 +10,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/codejavu-inc/swaggervu/data"
-	"github.com/codejavu-inc/swaggervu/internal/httpclient"
-	"github.com/codejavu-inc/swaggervu/internal/spec"
-	"github.com/codejavu-inc/swaggervu/internal/textutil"
+	"github.com/codejavu-llc/swaggervu/data"
+	"github.com/codejavu-llc/swaggervu/internal/httpclient"
+	"github.com/codejavu-llc/swaggervu/internal/spec"
+	"github.com/codejavu-llc/swaggervu/internal/textutil"
 )
 
 // Hit is a confirmed discovery.

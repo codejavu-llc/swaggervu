@@ -6,7 +6,7 @@ Thanks for helping make SwaggerVu better. Contributions of all sizes are welcome
 ## Build & test
 
 ```bash
-git clone https://github.com/codejavu-inc/swaggervu && cd swaggervu
+git clone https://github.com/codejavu-llc/swaggervu && cd swaggervu
 go build -o swaggervu .
 go test ./...
 go vet ./...

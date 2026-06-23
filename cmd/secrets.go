@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/codejavu-inc/swaggervu/internal/detect"
-	"github.com/codejavu-inc/swaggervu/internal/output"
-	"github.com/codejavu-inc/swaggervu/internal/secrets"
+	"github.com/codejavu-llc/swaggervu/internal/detect"
+	"github.com/codejavu-llc/swaggervu/internal/output"
+	"github.com/codejavu-llc/swaggervu/internal/secrets"
 	"github.com/spf13/cobra"
 )
 

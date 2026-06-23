@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/codejavu-inc/swaggervu/internal/httpclient"
+	"github.com/codejavu-llc/swaggervu/internal/httpclient"
 )
 
 // apiLike matches archived URLs worth testing for API definitions.

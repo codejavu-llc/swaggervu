@@ -12,9 +12,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/codejavu-inc/swaggervu/actions/workflows/ci.yml"><img src="https://github.com/codejavu-inc/swaggervu/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/codejavu-inc/swaggervu/releases/latest"><img src="https://img.shields.io/github/v/release/codejavu-inc/swaggervu?color=brightgreen" alt="Latest release"></a>
-  <a href="https://goreportcard.com/report/github.com/codejavu-inc/swaggervu"><img src="https://goreportcard.com/badge/github.com/codejavu-inc/swaggervu" alt="Go Report Card"></a>
+  <a href="https://github.com/codejavu-llc/swaggervu/actions/workflows/ci.yml"><img src="https://github.com/codejavu-llc/swaggervu/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/codejavu-llc/swaggervu/releases/latest"><img src="https://img.shields.io/github/v/release/codejavu-llc/swaggervu?color=brightgreen" alt="Latest release"></a>
+  <a href="https://goreportcard.com/report/github.com/codejavu-llc/swaggervu"><img src="https://goreportcard.com/badge/github.com/codejavu-llc/swaggervu" alt="Go Report Card"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/go-1.26-00ADD8?logo=go&logoColor=white" alt="Go 1.26">
 </p>
@@ -44,15 +44,15 @@ rate-limited worker pool that comfortably handles large target lists.
 ## Install
 
 **Prebuilt binary (recommended)** — grab the latest static binary for your OS/arch
-from the [releases page](https://github.com/codejavu-inc/swaggervu/releases/latest),
+from the [releases page](https://github.com/codejavu-llc/swaggervu/releases/latest),
 no toolchain required.
 
 **From source:**
 
 ```bash
-go install github.com/codejavu-inc/swaggervu@latest
+go install github.com/codejavu-llc/swaggervu@latest
 # or
-git clone https://github.com/codejavu-inc/swaggervu && cd swaggervu && go build -o swaggervu .
+git clone https://github.com/codejavu-llc/swaggervu && cd swaggervu && go build -o swaggervu .
 ```
 
 The `exploit` subcommand needs Chrome or Chromium installed (for headless confirmation).
