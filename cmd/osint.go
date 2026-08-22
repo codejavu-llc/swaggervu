@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/codejavu-llc/swaggervu/internal/osint"
 	"github.com/codejavu-llc/swaggervu/internal/output"
+	"github.com/codejavu-llc/swaggervu/internal/redact"
 	"github.com/codejavu-llc/swaggervu/internal/secrets"
 	"github.com/spf13/cobra"
 )
@@ -25,7 +26,10 @@ var osintCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		client2, _ := buildClient(true)
+		client2, err := buildClient(true)
+		if err != nil {
+			return err
+		}
 
 		sink, err := output.NewSink(flagOutput, flagJSON)
 		if err != nil {
@@ -37,16 +41,20 @@ var osintCmd = &cobra.Command{
 		found := 0
 		total, err := osint.Search(cmd.Context(), client, term, osintMaxPages, func(sp osint.Spec) {
 			found++
-			log.Good("%s", sp.URL)
+			safe := sp
+			safe.URL = redact.URL(sp.URL)
+			safe.Name = redact.Text(sp.Name)
+			safe.Description = redact.Text(sp.Description)
+			log.Good("%s", safe.URL)
 			if flagJSON {
-				sink.Add(sp)
+				sink.Add(safe)
 			} else {
-				sink.WriteLine(sp.URL)
+				sink.WriteLine(safe.URL)
 			}
 			if osintScan {
 				if resp, err := client2.Get(cmd.Context(), sp.URL); err == nil {
 					for _, f := range secrets.Scan(resp.BodyString()) {
-						log.Warn("  secret %s: %s", f.Type, f.Match)
+						log.Warn("  secret %s: %s (%d bytes)", f.Type, f.Fingerprint, f.Length)
 					}
 				}
 			}

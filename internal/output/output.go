@@ -8,6 +8,8 @@ import (
 	"os"
 	"strconv"
 	"sync"
+
+	"github.com/codejavu-llc/swaggervu/internal/redact"
 )
 
 // ANSI colors (disabled automatically when not a TTY).
@@ -55,7 +57,7 @@ func (l *Logger) line(prefix, color, format string, a ...any) {
 		fmt.Fprint(os.Stderr, "\r\033[K")
 		l.progressActive = false
 	}
-	fmt.Fprintf(os.Stderr, "%s %s\n", colorize(color, prefix), fmt.Sprintf(format, a...))
+	fmt.Fprintf(os.Stderr, "%s %s\n", colorize(color, prefix), redact.Message(fmt.Sprintf(format, a...)))
 }
 
 // Progress draws a transient single-line status to stderr, overwriting the
@@ -68,7 +70,7 @@ func (l *Logger) Progress(format string, a ...any) {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	fmt.Fprintf(os.Stderr, "\r\033[K%s %s", colorize(cCyan, "[*]"), fmt.Sprintf(format, a...))
+	fmt.Fprintf(os.Stderr, "\r\033[K%s %s", colorize(cCyan, "[*]"), redact.Message(fmt.Sprintf(format, a...)))
 	l.progressActive = true
 }
 
@@ -129,8 +131,12 @@ type Sink struct {
 func NewSink(path string, asJSON bool) (*Sink, error) {
 	s := &Sink{w: os.Stdout, json: asJSON}
 	if path != "" {
-		f, err := os.Create(path)
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600) // #nosec G304 -- user-selected report destination
 		if err != nil {
+			return nil, err
+		}
+		if err := f.Chmod(0o600); err != nil {
+			_ = f.Close()
 			return nil, err
 		}
 		s.w = f

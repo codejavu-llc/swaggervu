@@ -5,6 +5,7 @@ package browser
 
 import (
 	"context"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -37,8 +38,10 @@ func FindSpec(ctx context.Context, pageURL string, insecure bool, wait time.Dura
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", true),
 		chromedp.Flag("disable-gpu", true),
-		chromedp.Flag("no-sandbox", true),
 	)
+	if os.Geteuid() == 0 {
+		opts = append(opts, chromedp.Flag("no-sandbox", true))
+	}
 	if insecure {
 		opts = append(opts, chromedp.Flag("ignore-certificate-errors", true))
 	}

@@ -11,7 +11,7 @@ type SecretPattern struct {
 // rawSecretPatterns merges the TruffleHog-style corpus from intruder-io/autoswagger
 // with UndeadSec/SwaggerSpy's set. The SwaggerSpy bugs (missing comma after the JIRA
 // pattern, truncated secret_key / api regexes) are fixed here.
-var rawSecretPatterns = map[string]string{
+var rawSecretPatterns = map[string]string{ // #nosec G101 -- these are detection signatures, not credentials
 	"Slack Token":                   `xox[pborsa]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9-]{20,40}`,
 	"Slack Webhook":                 `https://hooks\.slack\.com/services/T[a-zA-Z0-9_]{8,12}/B[a-zA-Z0-9_]{8,12}/[a-zA-Z0-9_]{24}`,
 	"RSA Private Key":               `-----BEGIN RSA PRIVATE KEY-----`,

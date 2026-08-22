@@ -14,6 +14,7 @@ import (
 	"github.com/codejavu-llc/swaggervu/internal/discover"
 	"github.com/codejavu-llc/swaggervu/internal/osint"
 	"github.com/codejavu-llc/swaggervu/internal/output"
+	"github.com/codejavu-llc/swaggervu/internal/redact"
 	"github.com/codejavu-llc/swaggervu/internal/wayback"
 	"github.com/spf13/cobra"
 )
@@ -116,19 +117,24 @@ probed directly: --wayback (archived URLs) and --osint (public SwaggerHub specs)
 
 		emitHit := func(h discover.Hit) {
 			atomic.AddInt64(&hits, 1)
-			kind := string(h.Kind)
+			safe := h
+			safe.Target = redact.Message(h.Target)
+			safe.URL = redact.URL(h.URL)
+			safe.Title = redact.Text(h.Title)
+			safe.Marker = redact.Text(h.Marker)
+			kind := string(safe.Kind)
 			if kind == "" {
 				kind = "ui"
 			}
-			log.Good("%s  [%s] %s", h.URL, kind, h.Title)
+			log.Good("%s  [%s] %s", safe.URL, kind, safe.Title)
 			if flagJSON {
-				sink.Add(h)
+				sink.Add(safe)
 				return
 			}
 			if discPathsOnly {
-				sink.WriteLine(formatPath(h.URL, discNoDomain))
+				sink.WriteLine(formatPath(safe.URL, discNoDomain))
 			} else {
-				sink.WriteLine(h.URL)
+				sink.WriteLine(safe.URL)
 			}
 		}
 
@@ -205,7 +211,7 @@ func formatPath(rawURL string, noDomain bool) string {
 }
 
 func loadLines(path string) ([]string, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) // #nosec G304 -- explicit operator-selected wordlist
 	if err != nil {
 		return nil, err
 	}

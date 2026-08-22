@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/codejavu-llc/swaggervu/internal/redact"
 	"github.com/codejavu-llc/swaggervu/internal/scan"
 	"github.com/codejavu-llc/swaggervu/internal/spec"
 )
@@ -14,9 +15,9 @@ func severityForReasons(reasons []string) string {
 	high, medium := false, false
 	for _, r := range reasons {
 		switch {
-		case strings.HasPrefix(r, "secret:"), r == "broken access control":
+		case strings.HasPrefix(r, "secret:"):
 			high = true
-		case r == "auth not enforced", r == "stack trace", r == "sql error",
+		case r == "authorization differential", r == "authentication invariant", r == "stack trace", r == "sql error",
 			r == "go panic", r == ".NET error", r == "php error",
 			r == "debug enabled", r == "unauthenticated data", r == "internal path":
 			medium = true
@@ -37,10 +38,10 @@ func renderScanMarkdown(s *spec.Spec, src string, results []scan.Result) string 
 	var b strings.Builder
 	title := "API"
 	if s != nil && s.Title != "" {
-		title = s.Title
+		title = redact.Text(s.Title)
 	}
 	fmt.Fprintf(&b, "# SwaggerVu report — %s\n\n", title)
-	fmt.Fprintf(&b, "- **Source:** `%s`\n", src)
+	fmt.Fprintf(&b, "- **Source:** `%s`\n", redact.URL(src))
 	if s != nil {
 		fmt.Fprintf(&b, "- **Spec:** %s\n", s.Kind)
 	}
@@ -48,23 +49,32 @@ func renderScanMarkdown(s *spec.Spec, src string, results []scan.Result) string 
 	fmt.Fprintf(&b, "- **Findings:** %d\n\n", len(results))
 
 	if len(results) == 0 {
-		b.WriteString("_No unauthenticated data exposure or secret leaks detected._\n")
+		b.WriteString("_No configured evidence signals were recorded._\n")
 		return b.String()
 	}
 
 	for i, r := range results {
-		sev := severityForReasons(r.Reasons)
+		sev := strings.ToUpper(r.Severity)
+		if r.Severity == "" {
+			sev = severityForReasons(r.Reasons)
+		}
 		fmt.Fprintf(&b, "## %d. [%s] %s %s\n\n", i+1, sev, r.Method, r.Path)
 		fmt.Fprintf(&b, "- **URL:** %s\n", r.URL)
 		fmt.Fprintf(&b, "- **Status:** %d  ·  **Size:** %d bytes\n", r.Status, r.ContentLength)
+		if r.BodyTruncated {
+			b.WriteString("- **Capture:** truncated at the configured body limit\n")
+		}
 		if len(r.Reasons) > 0 {
 			fmt.Fprintf(&b, "- **Signals:** %s\n", strings.Join(r.Reasons, ", "))
 		}
-		for _, f := range r.Secrets {
-			fmt.Fprintf(&b, "  - secret `%s`: `%s`\n", f.Type, f.Match)
+		if r.FindingID != "" {
+			fmt.Fprintf(&b, "- **Evidence:** %s · confidence %s · `%s`\n", r.EvidenceLevel, r.Confidence, r.FindingID)
 		}
-		b.WriteString("\n**Reproduce:**\n\n```bash\n")
-		fmt.Fprintf(&b, "curl -sk -X %s '%s'\n", r.Method, r.URL)
+		for _, f := range r.Secrets {
+			fmt.Fprintf(&b, "  - secret `%s`: `%s` (%d bytes, value redacted)\n", f.Type, f.Fingerprint, f.Length)
+		}
+		b.WriteString("\n**Review/reproduce (query values redacted):**\n\n```bash\n")
+		fmt.Fprintf(&b, "curl --fail-with-body -sS -X %s '%s'\n", r.Method, r.URL)
 		b.WriteString("```\n\n")
 	}
 	return b.String()
@@ -94,7 +104,7 @@ func renderAllMarkdown(r *allReport) string {
 		if len(sp.Secrets) > 0 {
 			b.WriteString("### Secrets in spec\n\n")
 			for _, f := range sp.Secrets {
-				fmt.Fprintf(&b, "- `%s`: `%s`\n", f.Type, f.Match)
+				fmt.Fprintf(&b, "- `%s`: `%s` (%d bytes, value redacted)\n", f.Type, f.Fingerprint, f.Length)
 			}
 			b.WriteString("\n")
 		}

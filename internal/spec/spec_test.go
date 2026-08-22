@@ -1,6 +1,10 @@
 package spec
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
 
 const v2Spec = `{
   "swagger": "2.0",
@@ -92,5 +96,62 @@ func TestLoadYAML(t *testing.T) {
 	}
 	if s.Title != "YAML API" {
 		t.Fatalf("yaml title mismatch: %s", s.Title)
+	}
+}
+
+func TestDetectOpenAPI32(t *testing.T) {
+	body := []byte(`{"openapi":"3.2.0","info":{"title":"x","version":"1"},"paths":{"/widgets":{"get":{"responses":{"200":{"description":"ok"}}}}}}`)
+	k, v := Detect(body)
+	if k != KindOpenAPI32 || v != "3.2.0" {
+		t.Fatalf("got kind=%q version=%q", k, v)
+	}
+	loaded, err := Load(body, "openapi-3.2.json")
+	if err != nil {
+		t.Fatalf("load OpenAPI 3.2: %v", err)
+	}
+	if loaded.Kind != KindOpenAPI32 || loaded.Doc == nil || loaded.Doc.Paths.Len() != 1 {
+		t.Fatalf("unexpected OpenAPI 3.2 inventory: %#v", loaded)
+	}
+}
+
+func FuzzLoadNeverPanics(f *testing.F) {
+	f.Add([]byte(v2Spec))
+	f.Add([]byte(v3Spec))
+	f.Add([]byte(v3YAML))
+	f.Add([]byte(`not a spec`))
+	f.Fuzz(func(t *testing.T, body []byte) {
+		_, _ = Load(body, "fuzz-input")
+	})
+}
+
+func TestLoadDoesNotFetchExternalReferences(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		requests++
+	}))
+	defer server.Close()
+	body := []byte(`{"openapi":"3.0.3","info":{"title":"x","version":"1"},"paths":{"/x":{"get":{"responses":{"200":{"description":"ok","content":{"application/json":{"schema":{"$ref":"` + server.URL + `/schema.json"}}}}}}}}}`)
+	if _, err := Load(body, "local.json"); err != nil {
+		t.Fatalf("inventory should retain unresolved reference without fetching it: %v", err)
+	}
+	if requests != 0 {
+		t.Fatalf("external reference triggered %d network request(s)", requests)
+	}
+}
+
+func TestRelaxedLoadPreservesSecurityDeclarations(t *testing.T) {
+	body := []byte(`{
+  "openapi":"3.0.3",
+  "info":{"title":"secured","version":"1"},
+  "security":[{"oauth":[]}],
+  "components":{"securitySchemes":{"oauth":{"type":"oauth2","flows":{"clientCredentials":{"tokenUrl":"https://example.com/token","scopes":[]}}}}},
+  "paths":{"/private":{"get":{"responses":{"200":{"description":"ok"}}}}}
+}`)
+	loaded, err := Load(body, "secured.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Doc == nil || loaded.Doc.Components == nil || loaded.Doc.Components.SecuritySchemes["oauth"] == nil || len(loaded.Doc.Security) != 1 {
+		t.Fatal("security declarations were lost during relaxed load")
 	}
 }

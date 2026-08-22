@@ -8,7 +8,7 @@ body:
       label: What happened?
       description: What did you run, what did you expect, and what happened instead?
       placeholder: |
-        Command: swaggervu all example.com
+        Command: swaggervu ./openapi.yaml
         Expected: ...
         Got: ...
     validations:
@@ -33,3 +33,10 @@ body:
       label: Relevant output
       description: Paste any error output (redact sensitive target data).
       render: shell
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Data safety
+      options:
+        - label: I removed credentials, private response data, and embargoed vulnerability details.
+          required: true

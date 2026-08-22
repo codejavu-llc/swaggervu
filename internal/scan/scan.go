@@ -1,16 +1,18 @@
-// Package scan audits a loaded spec by generating and firing one request per
-// operation, flagging endpoints reachable without auth and leaking data
-// (skip-401/403 + largest-response BOLA heuristic from intruder-io/autoswagger).
+// Package scan audits a loaded spec by generating bounded requests and recording
+// evidence signals. It does not label response-size observations as BOLA.
 package scan
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/url"
 	"strings"
 	"sync"
 
 	"github.com/codejavu-llc/swaggervu/internal/httpclient"
+	"github.com/codejavu-llc/swaggervu/internal/redact"
 	"github.com/codejavu-llc/swaggervu/internal/requestgen"
 	"github.com/codejavu-llc/swaggervu/internal/secrets"
 	"github.com/codejavu-llc/swaggervu/internal/spec"
@@ -22,17 +24,24 @@ const largeResponseBytes = 256
 
 // Result is the outcome of probing one generated request.
 type Result struct {
+	SchemaVersion string `json:"schema_version"`
+	FindingID     string `json:"finding_id,omitempty"`
+	Severity      string `json:"severity,omitempty"`
+	Confidence    string `json:"confidence,omitempty"`
+	EvidenceLevel string `json:"evidence_level,omitempty"`
+	FindingStatus string `json:"finding_status,omitempty"`
 	Method        string `json:"method"`
 	URL           string `json:"url"`
 	Path          string `json:"path"`
 	Status        int    `json:"status"`
 	ContentLength int    `json:"content_length"`
+	BodyTruncated bool   `json:"body_truncated,omitempty"`
 	Interesting   bool   `json:"interesting"`
 	// AuthStatus is the status of the authenticated comparison request, set only
 	// in auth-aware mode (Status then holds the unauthenticated status).
 	AuthStatus int `json:"auth_status,omitempty"`
 	// Reasons explains why a result was flagged (e.g. "unauthenticated data",
-	// "broken access control", "stack trace"). Empty for uninteresting results.
+	// "authorization differential", "stack trace"). Empty for uninteresting results.
 	Reasons []string          `json:"reasons,omitempty"`
 	Secrets []secrets.Finding `json:"secrets,omitempty"`
 }
@@ -46,8 +55,8 @@ type Config struct {
 	// are flagged Interesting or counted by the basepath-fallback heuristic.
 	EmitAll bool
 	// AuthHeaders, when non-empty, enables auth-aware scanning: every endpoint is
-	// probed twice (without and with these headers) to detect broken access
-	// control — operations the spec says need auth that still return data
+	// probed twice (without and with these headers) to record authorization
+	// differences — operations the spec says need auth that still return data
 	// unauthenticated, and endpoints whose response ignores the token entirely.
 	AuthHeaders map[string]string
 	GenOpts     requestgen.Options
@@ -109,10 +118,11 @@ func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Requ
 			if cfg.EmitAll && onResult != nil {
 				onResult(Result{
 					Method:        req.Method,
-					URL:           req.URL,
-					Path:          req.Path,
+					URL:           redact.URL(req.URL),
+					Path:          redact.Text(req.Path),
 					Status:        resp.Status,
 					ContentLength: len(resp.Body),
+					BodyTruncated: resp.Truncated,
 				})
 			}
 			return
@@ -121,10 +131,11 @@ func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Requ
 		found := secrets.Scan(body)
 		res := Result{
 			Method:        req.Method,
-			URL:           req.URL,
-			Path:          req.Path,
+			URL:           redact.URL(req.URL),
+			Path:          redact.Text(req.Path),
 			Status:        resp.Status,
 			ContentLength: len(resp.Body),
+			BodyTruncated: resp.Truncated,
 			Secrets:       found,
 		}
 		// Interesting, in order of signal strength:
@@ -136,7 +147,7 @@ func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Requ
 		if resp.Status == 200 && len(resp.Body) >= largeResponseBytes && !isHTMLShell(body) {
 			res.Reasons = append(res.Reasons, "unauthenticated data")
 		}
-		res.Interesting = len(res.Reasons) > 0
+		finalize(&res)
 		emit(res)
 	})
 	return out
@@ -169,16 +180,17 @@ func probeAuthAware(ctx context.Context, client *httpclient.Client, req requestg
 	found := secrets.Scan(body)
 	res := Result{
 		Method:        req.Method,
-		URL:           req.URL,
-		Path:          req.Path,
+		URL:           redact.URL(req.URL),
+		Path:          redact.Text(req.Path),
 		Status:        unauth.Status,
 		AuthStatus:    authStatus,
 		ContentLength: len(unauth.Body),
+		BodyTruncated: unauth.Truncated,
 		Secrets:       found,
 	}
 	res.Reasons = reasonsFor(found, detectLeaks(body))
 	res.Reasons = append(res.Reasons, accessControlReasons(req.RequiresAuth, unauth.Status, len(unauth.Body), body, authStatus, authBody)...)
-	res.Interesting = len(res.Reasons) > 0
+	finalize(&res)
 	if res.Interesting || cfg.EmitAll {
 		if res.Interesting {
 			emit(res)
@@ -206,15 +218,44 @@ func accessControlReasons(requiresAuth bool, unauthStatus, unauthLen int, unauth
 	switch {
 	case requiresAuth:
 		// The spec says this operation needs auth, yet an anonymous request got
-		// data back — the strongest broken-access-control signal.
-		return []string{"broken access control"}
+		// data back. This is a strong differential signal, not proof of exploitability.
+		return []string{"authorization differential"}
 	case authStatus == 200 && textutil.Similarity(unauthBody, authBody) > 0.9:
 		// Authenticated and anonymous responses are near-identical — the token is
 		// ignored, so access control is not actually enforced.
-		return []string{"auth not enforced"}
+		return []string{"authentication invariant"}
 	default:
 		return []string{"unauthenticated data"}
 	}
+}
+
+func finalize(r *Result) {
+	r.SchemaVersion = "swaggervu.finding/v1"
+	r.FindingStatus = "observed"
+	r.Interesting = len(r.Reasons) > 0
+	if !r.Interesting {
+		return
+	}
+	r.Severity, r.Confidence, r.EvidenceLevel = "info", "low", "signal"
+	for _, reason := range r.Reasons {
+		switch {
+		case strings.HasPrefix(reason, "secret:"):
+			r.Severity, r.Confidence = "high", "medium"
+		case reason == "authorization differential":
+			if r.Severity != "high" {
+				r.Severity = "medium"
+			}
+			r.Confidence, r.EvidenceLevel = "medium", "differential"
+		case reason == "stack trace" || reason == "sql error" || reason == "go panic" ||
+			reason == ".NET error" || reason == "php error" || reason == "debug enabled":
+			if r.Severity != "high" {
+				r.Severity = "medium"
+			}
+			r.Confidence = "high"
+		}
+	}
+	sum := sha256.Sum256([]byte(strings.Join([]string{r.Method, r.URL, strings.Join(r.Reasons, "\x00")}, "\x00")))
+	r.FindingID = "sv-" + hex.EncodeToString(sum[:8])
 }
 
 // bodyReader returns a fresh reader for a request body (nil when empty), so the

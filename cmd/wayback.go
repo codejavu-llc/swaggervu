@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/codejavu-llc/swaggervu/internal/output"
+	"github.com/codejavu-llc/swaggervu/internal/redact"
 	"github.com/codejavu-llc/swaggervu/internal/wayback"
 	"github.com/spf13/cobra"
 )
@@ -33,10 +34,11 @@ var waybackCmd = &cobra.Command{
 			log.Info("%s: %d archived API URL(s)", domain, len(urls))
 			for _, u := range urls {
 				total++
+				safeURL := redact.URL(u)
 				if flagJSON {
-					sink.Add(map[string]string{"domain": domain, "url": u})
+					sink.Add(map[string]string{"domain": redact.Text(domain), "url": safeURL})
 				} else {
-					sink.WriteLine(u)
+					sink.WriteLine(safeURL)
 				}
 			}
 		}

@@ -13,6 +13,6 @@ body:
     id: idea
     attributes:
       label: Proposed solution
-      description: What should SwaggerVu do? Keep in mind the project stays simple, light, and non-destructive by default.
+      description: What should SwaggerVu do? Include the simplest user flow and any scope, side-effect, evidence, or redaction implications.
     validations:
       required: true

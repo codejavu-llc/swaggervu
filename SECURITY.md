@@ -1,34 +1,53 @@
-# Security Policy
-
-## Responsible use
-
-SwaggerVu is a **dual-use security tool** intended for **authorized** security
-testing and bug-bounty research only. By using it you confirm that you have
-explicit permission to test every target you supply.
-
-SwaggerVu is non-destructive by default:
-
-- Destructive HTTP methods (`POST`/`PUT`/`PATCH`/`DELETE`) are **never** sent
-  unless you explicitly pass `--risk`.
-- The `exploit` module is gated behind `--confirm` and never silently fans out
-  across a target list.
-- A global `--rate` limiter throttles every module.
-
-Do **not** use this tool against systems you do not own or are not authorized to
-assess. Misuse may be illegal.
-
-## Reporting a vulnerability
-
-If you find a security issue **in SwaggerVu itself** (not in a target you
-scanned), please report it privately:
-
-- Open a [GitHub Security Advisory](https://github.com/codejavu-llc/swaggervu/security/advisories/new), or
-- Email the maintainers (see repository profile).
-
-Please do not open a public issue for security-sensitive reports. We aim to
-acknowledge reports within a few days.
+# Security policy
 
 ## Supported versions
 
-The latest released version is supported. Fixes land on `main` and ship in the
-next tagged release.
+The latest stable release and the current release candidate are supported. Security
+fixes land on `main` and are released as quickly as practical.
+
+## Report a vulnerability privately
+
+Please do not open a public issue for a vulnerability in SwaggerVu itself.
+
+- Preferred: [open a private GitHub Security Advisory](https://github.com/codejavu-llc/swaggervu/security/advisories/new).
+- If GitHub advisories are unavailable, contact the maintainers through the Codejavu
+  organization profile and ask for a private reporting channel. Do not include exploit
+  details in the first public message.
+
+Include the affected version/commit, operating system, minimal reproduction, impact,
+and any suggested remediation. Remove real target credentials and data.
+
+We aim to acknowledge a complete report within three business days, provide an initial
+assessment within seven, and coordinate disclosure after a fix is available. Complex
+issues may take longer; we will keep the reporter informed.
+
+## Security boundaries
+
+SwaggerVu is a dual-use tool for explicitly authorized research. Its controls reduce
+accidents; they do not create authorization.
+
+- Bare-host mode performs a bounded HTTPS-only documentation check.
+- `scan` requires `--active`; non-GET/HEAD methods additionally require `--risk`.
+- `verify` requires `--active` (legacy `--confirm` remains accepted).
+- The legacy `all` command requires `--active`; browser work also needs `--verify`.
+- Sensitive headers require an exact `--auth-origin`.
+- Private/special-use networks require `--allow-private`.
+- Output URLs, secret matches, and browser console data cross a redaction boundary.
+- MCP scope and budgets are fixed at startup; MCP accepts no credentials or shell work.
+
+GET and HEAD are read-intent, not a guarantee of no side effects. Custom specs can
+generate surprising paths and values. Always inspect `scan --emit curl`, use a staging
+environment when possible, and choose a hard `--max-requests` budget.
+
+See [evidence semantics](docs/EVIDENCE.md) and the [MCP threat model](docs/MCP.md).
+
+## Release integrity
+
+Tagged releases are built by GitHub Actions with pinned action revisions. Release
+archives include SHA-256 checksums and SBOMs and receive GitHub artifact attestations.
+Consumers can verify them with:
+
+```bash
+gh attestation verify <archive> --repo codejavu-llc/swaggervu
+sha256sum -c checksums.txt
+```

@@ -8,6 +8,7 @@ import (
 
 	"github.com/codejavu-llc/swaggervu/internal/browser"
 	"github.com/codejavu-llc/swaggervu/internal/detect"
+	"github.com/codejavu-llc/swaggervu/internal/redact"
 	"github.com/codejavu-llc/swaggervu/internal/spec"
 	"github.com/spf13/cobra"
 )
@@ -31,17 +32,17 @@ var detectCmd = &cobra.Command{
 		}
 		log.Banner(version)
 
-		s, err := loadSpecFromSource(cmd.Context(), src)
+		s, err := loadSpecFromSourceMode(cmd.Context(), src, !detectNoBrowser)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Type:    %s\n", s.Kind)
 		fmt.Printf("Version: %s\n", s.Version)
-		fmt.Printf("Title:   %s\n", s.Title)
+		fmt.Printf("Title:   %s\n", redact.Text(s.Title))
 		eps := detect.Endpoints(s)
 		fmt.Printf("Endpoints: %d\n", len(eps))
 		for _, e := range eps {
-			fmt.Println("  " + e)
+			fmt.Println("  " + redact.Text(e))
 		}
 		return nil
 	},
@@ -49,6 +50,10 @@ var detectCmd = &cobra.Command{
 
 // loadSpecFromSource loads a spec from a local file or a URL.
 func loadSpecFromSource(ctx context.Context, src string) (*spec.Spec, error) {
+	return loadSpecFromSourceMode(ctx, src, false)
+}
+
+func loadSpecFromSourceMode(ctx context.Context, src string, allowBrowser bool) (*spec.Spec, error) {
 	if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
 		client, err := buildClient(true)
 		if err != nil {
@@ -72,23 +77,31 @@ func loadSpecFromSource(ctx context.Context, src string) (*spec.Spec, error) {
 		// Static parsing failed — the docs UI likely fetches its spec via
 		// JavaScript after load. Fall back to a headless browser that watches
 		// the network for the actual spec request (unless disabled).
-		if !detectNoBrowser {
+		if allowBrowser {
 			log.Info("static detection failed — loading %s headless to watch the network", src)
 			br, err := browser.FindSpec(ctx, src, flagInsecure, 0)
 			if err == nil && br.Spec != nil {
-				log.Good("found spec via network capture: %s", br.SpecURL)
+				log.Good("found spec via network capture: %s", redact.URL(br.SpecURL))
 				return br.Spec, nil
 			}
 			if br != nil && len(br.Candidates) > 0 {
 				log.Warn("saw %d spec-like request(s) but none parsed:", len(br.Candidates))
 				for _, c := range br.Candidates {
-					log.Warn("  %s", c)
+					log.Warn("  %s", redact.URL(c))
 				}
 			}
 		}
 		return nil, fmt.Errorf("no parsable API definition found at %s", src)
 	}
-	b, err := os.ReadFile(src)
+	info, err := os.Stat(src)
+	if err != nil {
+		return nil, err
+	}
+	limit := flagMaxBodyMB << 20
+	if info.Size() > limit {
+		return nil, fmt.Errorf("local description exceeds %d MiB limit", flagMaxBodyMB)
+	}
+	b, err := os.ReadFile(src) // #nosec G304 -- explicit operator-selected description
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +109,8 @@ func loadSpecFromSource(ctx context.Context, src string) (*spec.Spec, error) {
 }
 
 func init() {
+	detectCmd.Hidden = true
+	detectCmd.Deprecated = "use 'swaggervu <spec-or-url>'"
 	detectCmd.Flags().StringVarP(&detectURL, "url", "u", "", "URL or file of the API definition")
 	detectCmd.Flags().BoolVar(&detectNoBrowser, "no-browser", false, "disable the headless-browser fallback for JS-rendered docs")
 	rootCmd.AddCommand(detectCmd)

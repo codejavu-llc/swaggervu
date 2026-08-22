@@ -30,7 +30,7 @@ func TestProbeURLsDirect(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, err := httpclient.New(httpclient.Options{Timeout: 5 * time.Second})
+	client, err := httpclient.New(httpclient.Options{Timeout: 5 * time.Second, AllowPrivate: true})
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestProbeURLsRejectsNonSpec(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, err := httpclient.New(httpclient.Options{Timeout: 5 * time.Second})
+	client, err := httpclient.New(httpclient.Options{Timeout: 5 * time.Second, AllowPrivate: true})
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}

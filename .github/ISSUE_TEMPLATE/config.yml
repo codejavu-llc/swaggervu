@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/codejavu-llc/swaggervu/discussions
+    about: Ask for help or discuss a larger idea before opening an issue.
+  - name: Private security report
+    url: https://github.com/codejavu-llc/swaggervu/security/advisories/new
+    about: Report a vulnerability in SwaggerVu without publishing details.

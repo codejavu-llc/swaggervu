@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/codejavu-llc/swaggervu/main/schemas/finding-v1.schema.json",
+  "title": "SwaggerVu finding v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "method",
+    "url",
+    "path",
+    "status",
+    "content_length",
+    "interesting"
+  ],
+  "properties": {
+    "schema_version": {"const": "swaggervu.finding/v1"},
+    "finding_id": {"type": "string", "pattern": "^sv-[0-9a-f]{16}$"},
+    "severity": {"enum": ["info", "low", "medium", "high", "critical"]},
+    "confidence": {"enum": ["low", "medium", "high"]},
+    "evidence_level": {"enum": ["signal", "differential", "confirmed"]},
+    "finding_status": {"enum": ["observed", "reviewed", "accepted", "rejected"]},
+    "method": {"type": "string"},
+    "url": {"type": "string", "description": "Sanitized request URL; query values are placeholders."},
+    "path": {"type": "string"},
+    "status": {"type": "integer", "minimum": 0, "maximum": 999},
+    "content_length": {"type": "integer", "minimum": 0},
+    "body_truncated": {"type": "boolean"},
+    "interesting": {"type": "boolean"},
+    "auth_status": {"type": "integer", "minimum": 0, "maximum": 999},
+    "reasons": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "secrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "fingerprint", "length"],
+        "properties": {
+          "type": {"type": "string"},
+          "match": {"const": "[REDACTED]"},
+          "fingerprint": {"type": "string", "pattern": "^hmac-sha256:[0-9a-f]{16}$"},
+          "length": {"type": "integer", "minimum": 1}
+        }
+      }
+    }
+  }
+}

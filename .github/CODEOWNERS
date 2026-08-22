@@ -1,0 +1,8 @@
+* @c0dejavu
+
+/internal/httpclient/ @c0dejavu
+/internal/mcpserver/ @c0dejavu
+/internal/redact/ @c0dejavu
+/data/cves.go @c0dejavu
+/.github/workflows/ @c0dejavu
+/schemas/ @c0dejavu

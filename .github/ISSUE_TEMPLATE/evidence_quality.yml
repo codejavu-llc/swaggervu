@@ -1,0 +1,43 @@
+name: False positive or false negative
+description: Help improve a finding, parser, discovery, or redaction decision
+labels: [evidence-quality]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Problem type
+      options:
+        - False positive
+        - False negative
+        - Incorrect severity/confidence/evidence level
+        - Parser or discovery classification
+        - Redaction issue (no sensitive details)
+    validations:
+      required: true
+  - type: textarea
+    id: observation
+    attributes:
+      label: What did SwaggerVu observe?
+      description: Include the sanitized finding and command. Never include a real secret or private response body.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should the evidence mean instead?
+      description: Explain the alternative cause or missing assertion.
+    validations:
+      required: true
+  - type: textarea
+    id: fixture
+    attributes:
+      label: Minimal sanitized fixture
+      description: Paste or link a description/response fixture with all organization and credential data removed.
+      render: yaml
+  - type: input
+    id: version
+    attributes:
+      label: SwaggerVu version
+      placeholder: Output of swaggervu --version
+    validations:
+      required: true

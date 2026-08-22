@@ -34,18 +34,18 @@ const v3Spec = `{
   }
 }`
 
-func TestBuildDefaultIsReadOnly(t *testing.T) {
+func TestBuildDefaultUsesGetAndHeadOnly(t *testing.T) {
 	s, err := spec.Load([]byte(v3Spec), "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	reqs := Build(s, DefaultOptions())
 	for _, r := range reqs {
-		if r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS" {
-			t.Fatalf("default build must be read-only, got %s %s", r.Method, r.URL)
+		if r.Method != "GET" && r.Method != "HEAD" {
+			t.Fatalf("default build must use GET/HEAD only, got %s %s", r.Method, r.URL)
 		}
 	}
-	// Only GET /users/{id} is non-mutating in the fixture.
+	// Only GET /users/{id} is in the default request profile in the fixture.
 	if len(reqs) != 1 {
 		t.Fatalf("expected 1 read-only request by default, got %d", len(reqs))
 	}
@@ -131,5 +131,27 @@ func TestContextAwareBodyValues(t *testing.T) {
 	}
 	if !strings.Contains(post.Body, "@example.com") {
 		t.Fatalf("email field should use email value, body=%s", post.Body)
+	}
+}
+
+func TestUntrustedExamplesAndSecretEnumsAreNotUsed(t *testing.T) {
+	body := []byte(`{
+  "openapi":"3.0.3","info":{"title":"x","version":"1"},
+  "servers":[{"url":"https://api.example.com"}],
+  "paths":{"/items":{"get":{"parameters":[
+    {"name":"q","in":"query","schema":{"type":"string","example":"production-customer"}},
+    {"name":"key","in":"query","schema":{"type":"string","enum":["AKIAIOSFODNN7EXAMPLE"]}}
+  ],"responses":{"200":{"description":"ok"}}}}}
+}`)
+	s, err := spec.Load(body, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqs := Build(s, DefaultOptions())
+	if len(reqs) != 1 {
+		t.Fatalf("got %d requests", len(reqs))
+	}
+	if strings.Contains(reqs[0].URL, "production-customer") || strings.Contains(reqs[0].URL, "AKIAIOSFODNN7EXAMPLE") {
+		t.Fatalf("untrusted description value entered request: %s", reqs[0].URL)
 	}
 }

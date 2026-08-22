@@ -1,249 +1,196 @@
 <h1 align="center">SwaggerVu</h1>
 
 <p align="center">
-  <b>The all-in-one Swagger / OpenAPI discovery, audit &amp; testing toolkit.</b><br>
-  Find API docs across thousands of targets, parse any spec, hunt for unauthenticated
-  data exposure &amp; secrets, and confirm client-side CVEs with a headless browser —
-  in a single static Go binary.
+  <strong>Find the OpenAPI. Understand the attack surface. Keep the evidence honest.</strong>
 </p>
 
 <p align="center">
-  <i>For authorized security testing and bug-bounty use only.</i>
+  A focused OpenAPI security workbench for researchers—one Go binary, a simple CLI,
+  and a policy-bounded MCP server for AI-assisted workflows.
 </p>
 
 <p align="center">
   <a href="https://github.com/codejavu-llc/swaggervu/actions/workflows/ci.yml"><img src="https://github.com/codejavu-llc/swaggervu/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/codejavu-llc/swaggervu/releases/latest"><img src="https://img.shields.io/github/v/release/codejavu-llc/swaggervu?color=brightgreen" alt="Latest release"></a>
-  <a href="https://goreportcard.com/report/github.com/codejavu-llc/swaggervu"><img src="https://goreportcard.com/badge/github.com/codejavu-llc/swaggervu" alt="Go Report Card"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/go-1.26-00ADD8?logo=go&logoColor=white" alt="Go 1.26">
+  <a href="https://github.com/codejavu-llc/swaggervu/actions/workflows/codeql.yml"><img src="https://github.com/codejavu-llc/swaggervu/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="https://github.com/codejavu-llc/swaggervu/releases/latest"><img src="https://img.shields.io/github/v/release/codejavu-llc/swaggervu?include_prereleases" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT"></a>
+  <img src="https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white" alt="Go 1.26+">
 </p>
 
----
+> Use SwaggerVu only on systems you own or are explicitly authorized to test.
 
-## Why SwaggerVu
-
-Most Swagger tooling does exactly one thing — brute a path list, *or* parse a spec,
-*or* check a single CVE. SwaggerVu fuses the best ideas from across the ecosystem into
-one cohesive tool:
-
-| Capability | What it does |
-|---|---|
-| 🔭 **Discover** | Probe up to thousands of hosts with a curated flagship wordlist, confirm hits with content matchers, and kill false positives with random-path baselining. |
-| 🕰️ **Wayback** | Harvest a domain's archived API URLs from the Wayback Machine and feed them straight into discovery — `discover --wayback`. |
-| 🛰️ **OSINT** | Find public definitions on SwaggerHub by domain/keyword — `discover --osint`. |
-| 🧬 **Detect / Parse** | Identify Swagger 2.0, OpenAPI 3.0 &amp; 3.1 from JSON, YAML, or JS-embedded specs — auto-converting v2→v3. |
-| 🎯 **Scan** | Generate one request per operation from the spec, skip `401/403`, and flag endpoints that return data without auth (broken access control / data exposure). |
-| 🔑 **Secrets** | Regex corpus (TruffleHog-style + SwaggerSpy) over the spec document and live responses — runs automatically inside `scan` and `all`. |
-| 🧪 **Exploit** | Confirm Swagger-UI `configUrl` / `url` DOM XSS and spec-driven HTML injection with a **real headless browser** and screenshot evidence — opt-in &amp; gated. Reads the browser console to distinguish a genuine miss from a **CORS-blocked** PoC fetch, and accepts your own payload host. |
-| 🛠️ **Prepare** | Emit ready-to-run `curl` / `sqlmap` commands per endpoint for manual testing — `scan --emit curl\|sqlmap`. |
-
-Built on `kin-openapi` (parsing), `chromedp` (headless confirmation), and a global,
-rate-limited worker pool that comfortably handles large target lists.
-
-## Install
-
-**Prebuilt binary (recommended)** — grab the latest static binary for your OS/arch
-from the [releases page](https://github.com/codejavu-llc/swaggervu/releases/latest),
-no toolchain required.
-
-**From source:**
+## The 60-second path
 
 ```bash
+# Install
 go install github.com/codejavu-llc/swaggervu@latest
-# or
-git clone https://github.com/codejavu-llc/swaggervu && cd swaggervu && go build -o swaggervu .
+
+# Inspect a local or remote description—no API operations are executed
+swaggervu ./openapi.yaml
+swaggervu https://api.example.com/openapi.json
+
+# Give it a host for a bounded HTTPS-only docs check (25 priority paths)
+swaggervu api.example.com
+
+# Compare two descriptions
+swaggervu diff old.yaml new.yaml
+
+# Review the exact API request plan, then explicitly run it
+swaggervu scan ./openapi.yaml --emit curl
+swaggervu scan ./openapi.yaml --active --allow-host api.example.com
 ```
 
-The `exploit` subcommand needs Chrome or Chromium installed (for headless confirmation).
+That progression is deliberate: inventory first, plan second, network execution
+only after an explicit command and active gate.
 
-## Demo
+## Why researchers use it
 
-> One command, browser-confirmed findings, evidence you can paste straight into a report:
->
-> ```bash
-> swaggervu all acc.example.com --screenshots ./evidence --md -o report.md
-> ```
-
-<!-- TODO: record a demo and embed it here. Suggested:
-       asciinema rec demo.cast
-       agg demo.cast docs/demo.gif      # https://github.com/asciinema/agg
-     then add:  <p align="center"><img src="docs/demo.gif" width="800"></p>  -->
-
-
-## Autopilot — one command, everything
-
-Give it a domain and it runs the whole chain with **no flags required**: seed from the
-Wayback Machine → discover (http+https) → parse → audit endpoints → scan secrets →
-confirm client-side CVEs in a headless browser. Every phase is non-destructive.
-
-```bash
-# the whole pipeline, every phase, against one domain
-swaggervu all acc.example.com
-
-# save a structured report and screenshot evidence of any confirmed CVEs
-swaggervu all acc.example.com --json -o report.json --screenshots ./evidence
-
-# or emit a paste-ready Markdown writeup for your bug-bounty submission
-swaggervu all acc.example.com --md -o report.md --screenshots ./evidence
-
-# a big list, faster: bump workers + rate; -V logs every probe (not just findings)
-swaggervu all -l scope.txt -c 300 --rate 500 -V
-
-# add --risk to also send POST/PUT/PATCH/DELETE (may modify data)
-swaggervu all -l scope.txt --risk
-```
-
-The only opt-in is `--risk` — destructive HTTP methods are **never** sent without it.
-By default the autopilot only logs findings; pass `-V`/`--show-all` to see every probed
-request and its status (incl. non-200 and `401`/`403`). Note that non-GET methods are
-only generated with `--risk`, so `-V` alone shows `GET` requests.
-
-Wayback seeding runs only for small runs (≤20 targets) — for a big subdomain list it is
-skipped (you already have the hosts); run `discover --wayback` on specific hosts if you want it.
-The exploit phase confirms with a benign built-in PoC and is skipped gracefully if no
-Chrome/Chromium is installed. A run prints a live, phased log and a final summary:
-
-```
-phase 1/3 — discovering Swagger/OpenAPI across 1 target(s)
-[+] spec: https://acc.example.com/api-doc.json [OpenAPI 3.0] Example API
-phase 2/3 — parsing, auditing & secret-scanning 1 spec(s)
-[+]   [200] 60711 bytes  GET .../pet/findByStatus?status=available
-phase 3/3 — confirming client-side CVEs on 1 candidate(s)
-──────── autopilot summary ────────
-specs found: 1   interesting endpoints: 4   spec secrets: 0   confirmed exploits: 0
-```
-
-## Quick start
-
-```bash
-# 1) Discover exposed Swagger/OpenAPI across a list of hosts, save matched paths
-swaggervu discover -l targets.txt -c 200 --paths-only -o found.txt
-
-# 2) Same, but strip the domain (path-only wordlist output)
-swaggervu discover -l targets.txt --paths-only --no-domain -o paths.txt
-
-# 3) Seed discovery with archived API URLs from the Wayback Machine
-swaggervu discover example.com --wayback -o found.txt
-
-# 4) Identify a definition and list its endpoints
-swaggervu detect -u https://petstore.swagger.io/v2/swagger.json
-
-# 5) Audit an API for unauthenticated data exposure & secrets
-swaggervu scan https://petstore.swagger.io/v2/swagger.json --json -o findings.json
-#    ...or a Markdown writeup ready to paste into a report
-swaggervu scan https://petstore.swagger.io/v2/swagger.json --md -o findings.md
-#    ...auth-aware: probe each endpoint with AND without a token to find
-#    broken access control (data the spec says needs auth, but doesn't enforce)
-swaggervu scan https://api.example.com/swagger.json --auth 'Authorization: Bearer TOKEN'
-
-# 6) Seed discovery with public specs from SwaggerHub (OSINT)
-swaggervu discover example.com --osint
-
-# 7) Confirm Swagger-UI XSS with a headless browser (authorized targets only)
-swaggervu discover -l scope.txt --paths-only | swaggervu exploit -l /dev/stdin --confirm --screenshots ./evidence
-
-# 7b) Use your own externally hosted payloads, per param (e.g. surge.sh)
-swaggervu exploit $T/swagger-ui --confirm \
-  --payload configUrl=https://you.surge.sh/test.json \
-  --payload url=https://you.surge.sh/test.yaml
-#   confirmation triggers on an alert()/confirm()/prompt() dialog your payload
-#   fires, the built-in markers, or a --marker string you know it injects.
-```
-
-By default `exploit` injects the bundled hosted PoC specs
-(`configUrl` → `https://jumpy-floor.surge.sh/test.json`,
-`url` → `https://jumpy-floor.surge.sh/test.yaml`). Override either per param
-without touching flags via the environment:
-
-```bash
-export SWAGGERVU_PAYLOAD_CONFIGURL=https://your-host.example/test.json
-export SWAGGERVU_PAYLOAD_URL=https://your-host.example/test.yaml
-```
-
-Or pass `--payload PARAM=URL` per run, `--payload-url URL` for all params, or
-`--builtin-payload` to force the self-contained local benign PoC server.
-
-### What `exploit` checks
-
-It tests **2 injection parameters** (`configUrl`, `url`) covering **5 registry entries**
-(`swaggervu exploit --list-cves`): **CVE-2025-8191** (configUrl/url DOM XSS via a
-DOMPurify ≤2.2.2 bypass — the built-in PoC's nested `math/svg/textarea` payload),
-**CVE-2018-25031** (configUrl DOM XSS), **CVE-2016-1000229** (url DOM XSS), and a
-generic **spec-driven HTML-injection** check. For each, the headless browser asserts
-JS execution (`dom-xss`) or rendered markup (`html-injection`), and classifies every
-target as one of:
-
-- `VULNERABLE` — confirmed in the DOM (with screenshot evidence)
-- `CORS-BLOCKED` — the UI loaded and fetched the PoC spec, but the browser blocked it
-  cross-origin (console shows `blocked by CORS policy`). Re-host the payload with
-  `Access-Control-Allow-Origin: *` and retry with `--payload-url` — these are likely leads, not misses.
-- `ui-loaded (not injectable)` — swagger-ui rendered but the spec did not inject.
-
-## Discovery output modes
-
-The `discover` command is built for mass scanning and flexible output:
-
-```bash
-swaggervu discover -l targets.txt \
-  -c 200            # 200 concurrent workers
-  --rate 300        # global cap of 300 req/s
-  --https-only      # restrict to https (both schemes are probed by default)
-  --wayback         # also seed candidates from the Wayback Machine
-  --osint           # also seed candidates from SwaggerHub (OSINT)
-  --first-only      # stop at the first hit per host (faster)
-  --paths-only      # output only matched URLs/paths
-  --no-domain       # ...with the domain stripped
-  -w custom.txt     # override the built-in wordlist
-  --list-paths      # just print the flagship wordlist and exit
-```
-
-## Safety &amp; authorization
-
-SwaggerVu is a dual-use security tool. It is **non-destructive by default** across
-every command, including the `all` autopilot:
-
-- **Destructive HTTP methods** (`POST`/`PUT`/`PATCH`/`DELETE`) are **never** sent —
-  not by `scan`, not by `all` — unless you explicitly pass `--risk`.
-- The CVE confirmation in `all` uses a **benign built-in PoC** (a self-contained XSS
-  check, no data exfiltrated) and is skipped gracefully when no headless browser is
-  available.
-- The standalone `exploit` command does nothing without `--confirm` and never silently
-  fans out across a target list — use it when you want to drive your own payloads.
-- A global `--rate` limiter throttles every module.
-
-Only test systems you own or are explicitly authorized to assess.
-
-## All commands
-
-```
-all        Autopilot: one command runs every phase — discover, audit, secrets, exploit
-discover   Find exposed Swagger/OpenAPI endpoints (sources: wordlist, --wayback, --osint)
-detect     Identify an API definition's type/version and list endpoints
-scan       Audit an API: unauth/data-leak + spec & response secrets (--emit curl|sqlmap)
-exploit    Confirm Swagger-UI client-side CVEs (gated, headless-confirmed)
-```
-
-Five focused commands. Capabilities that used to be their own commands are now
-flags on these:
-
-| Old command | Now |
+| Job | SwaggerVu behavior |
 |---|---|
-| `wayback <domain>` | `discover <domain> --wayback` |
-| `osint <term>` | `discover <term> --osint` |
-| `secrets <spec>` | automatic in `scan` (spec document + responses) |
-| `prepare <spec>` | `scan <spec> --emit curl\|sqlmap` |
+| Find exposed docs | Content-aware discovery with catch-all baselining, priority paths, concurrency, and hard request/body limits. |
+| Understand a spec | Swagger 2.0 conversion plus OpenAPI 3.0, 3.1, and 3.2 inventory from JSON, YAML, or common JS embedding. |
+| Triage exposure | Endpoint, security-scheme, plaintext-server, server-internal, response, and embedded-secret signals. |
+| Compare auth states | Anonymous/authenticated response differentials with credentials bound to an exact origin. |
+| Produce useful evidence | Versioned JSON, stable finding IDs, confidence/evidence levels, redacted query values, and Markdown reports. |
+| Verify Swagger UI behavior | Explicit headless-browser verification using a local benign canary and an accurately scoped CVE catalog. |
+| Work with AI safely | Local stdio MCP with immutable startup scope, budgets, safe roots, DNS defenses, and no browser/shell/auth tools. |
 
-The old names still work (hidden) for script compatibility. Run
-`swaggervu <command> --help` for full flags. Global flags (`-c`, `--rate`,
-`-t`, `-k`, `--proxy`, `-H`, `-A`, `--random-agent`, `-o`, `--json`, `-q`) apply
-to every command.
+SwaggerVu calls a clue a clue. A large anonymous response is an
+`unauthenticated data` signal—not automatically BOLA. An auth comparison is an
+`authorization differential`—not proof that another user's object is accessible.
+See [Evidence semantics](docs/EVIDENCE.md).
 
-## Credits
+## Commands
 
-SwaggerVu stands on the shoulders of the tools it learned from — see
-[CREDITS.md](CREDITS.md).
+```text
+swaggervu [target-or-spec]  bounded inspect or local spec inventory
+swaggervu discover         find likely OpenAPI descriptions and documentation UIs
+swaggervu scan             plan or execute an operation-derived request profile
+swaggervu verify           test the supported Swagger UI remote-spec chain
+swaggervu diff             compare added/removed operations
+swaggervu doctor           check the binary and optional browser support
+swaggervu mcp              run the policy-bounded MCP server over stdio
+```
+
+`all` remains as a hidden compatibility command. It now requires `--active`, and
+its browser phase additionally requires `--verify`. New workflows should compose
+the focused commands above.
+
+### Discovery
+
+```bash
+swaggervu discover api.example.com
+swaggervu discover -l scope.txt --https-only --first-only --paths-only
+swaggervu discover example.com --wayback
+swaggervu discover example --osint
+```
+
+Bare inspection checks HTTPS only and at most 25 priority paths. `discover` is the
+explicit full-discovery command. Global controls include `--rate`, `--concurrency`,
+`--timeout`, `--max-requests`, `--max-body-mb`, `--allow-host`, and
+`--allow-private`.
+
+### Scan and auth comparison
+
+```bash
+# Print only; no API operation is sent
+swaggervu scan openapi.yaml --emit curl
+
+# Execute GET/HEAD operations within one exact hostname
+swaggervu scan openapi.yaml --active --allow-host api.example.com --max-requests 100
+
+# Compare anonymous and authenticated responses. The credential can only go to
+# this exact scheme + host + port.
+swaggervu scan openapi.yaml --active \
+  --allow-host api.example.com \
+  --auth-origin https://api.example.com \
+  --auth 'Authorization: Bearer REDACTED'
+
+# Non-GET/HEAD operations need both gates
+swaggervu scan openapi.yaml --active --risk --allow-host api.example.com
+```
+
+Sensitive `-H` and `--auth` values are refused without `--auth-origin`. Redirects
+are same-origin only, private/special-use addresses are denied by default, external
+spec references are disabled, and report files are created with owner-only mode.
+
+### Browser verification
+
+```bash
+swaggervu verify https://docs.example.com/swagger-ui/ \
+  --active --screenshots ./evidence
+```
+
+Chrome or Chromium is optional and used only for browser-backed paths. The default
+payload is served locally for the duration of the process; SwaggerVu does not rely
+on a third-party payload host. Ambient dialogs do not count as evidence. Use
+`swaggervu verify --list-cves` and see [CVE provenance](data/CVE_PROVENANCE.md) for
+the exact catalog/testability boundary.
+
+## MCP for AI-assisted research
+
+Start with authority fixed on the command line:
+
+```bash
+# Local descriptions only; inspection/audit tools, no network execution
+swaggervu mcp --allow-root /absolute/path/to/specs
+
+# Permit one public hostname and the bounded GET/HEAD scan tool
+swaggervu mcp --allow-host api.example.com --active \
+  --max-requests 100 --max-body-mb 2 --rate 5
+```
+
+Example client configuration:
+
+```json
+{
+  "mcpServers": {
+    "swaggervu": {
+      "command": "/absolute/path/to/swaggervu",
+      "args": ["mcp", "--allow-root", "/absolute/path/to/specs"]
+    }
+  }
+}
+```
+
+The seven tools are `inspect_spec`, `audit_spec`, `discover_docs`, `plan_scan`,
+`run_readonly_scan`, `get_finding`, and `render_report`. The network scan tool is
+intentionally not annotated read-only: GET/HEAD are read-intent, but APIs can have
+side effects. MCP exposes no arbitrary shell, browser verification, credentials,
+Wayback, or unbounded URL-fetch tool. Full setup and threat model:
+[docs/MCP.md](docs/MCP.md).
+
+## Install and verify
+
+Prebuilt Linux, macOS, and Windows archives are published on the
+[releases page](https://github.com/codejavu-llc/swaggervu/releases). Releases include
+checksums, Syft-generated SBOMs, and GitHub build-provenance attestations.
+
+```bash
+# Source install (Go 1.26+)
+go install github.com/codejavu-llc/swaggervu@latest
+
+# Verify a downloaded release after `gh auth login`
+gh attestation verify swaggervu_*.tar.gz --repo codejavu-llc/swaggervu
+sha256sum -c checksums.txt
+```
+
+Run `swaggervu doctor` after installation.
+
+## Project principles
+
+- Simple first run; expert controls remain available.
+- No vulnerability label without matching evidence.
+- Secrets and query values do not belong in logs or reports.
+- Network authority is explicit, origin-bound, and budgeted.
+- AI integration receives less authority than a human CLI session.
+- Rules and CVEs need primary-source provenance and regression tests.
+
+The research and roadmap behind these choices are in
+[docs/PRODUCT_PLAN.md](docs/PRODUCT_PLAN.md). Contributions, new fixtures, false
+positive reports, and research-backed rules are welcome—start with
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT. Use responsibly.
+[MIT](LICENSE). Use responsibly.

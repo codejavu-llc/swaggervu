@@ -2,37 +2,71 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    name: build · vet · test
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.26.7
+          cache: true
+      - name: Verify formatting
+        shell: bash
+        run: test -z "$(gofmt -l .)"
+      - name: Verify modules
+        shell: bash
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+      - name: Vet
+        run: go vet ./...
+      - name: Test with race detector
+        run: go test -race -coverprofile=coverage.out ./...
+      - name: Build
+        run: go build -trimpath ./...
+      - name: Static security analysis
+        shell: bash
+        run: go run github.com/securego/gosec/v2/cmd/gosec@v2.28.0 -quiet ./...
+      - name: Known-vulnerability analysis
+        shell: bash
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+  compatibility:
+    name: compatibility (${{ matrix.os }}, Go ${{ matrix.go }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            go: 1.27.x
+          - os: macos-latest
+            go: 1.26.7
+          - os: windows-latest
+            go: 1.26.7
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.26'
+          go-version: ${{ matrix.go }}
           cache: true
-
-      - name: Download modules
-        run: go mod download
-
-      - name: Build
-        run: go build ./...
-
-      - name: Vet
-        run: go vet ./...
-
       - name: Test
-        run: go test -race ./...
+        run: go test ./...
+      - name: Build CLI
+        run: go build -trimpath ./...

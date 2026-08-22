@@ -1,0 +1,39 @@
+name: Research or rule proposal
+description: Propose a provenance-backed CVE, signal, parser fixture, or discovery rule
+labels: [research]
+body:
+  - type: textarea
+    id: claim
+    attributes:
+      label: Exact claim
+      description: State the narrow observation this rule could support and the intended evidence level.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Primary source
+      description: Vendor advisory, standards document, CVE authority record, or original research artifact.
+    validations:
+      required: true
+  - type: textarea
+    id: positive
+    attributes:
+      label: Positive fixture/assertion
+      description: Explain how SwaggerVu can independently observe the claimed behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: negative
+    attributes:
+      label: Realistic negative control
+      description: Explain how the implementation will avoid the most likely false positive.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Scope, side effects, and redaction
+      description: Describe network activity, budgets, credentials, stored evidence, and expected output.
+    validations:
+      required: true

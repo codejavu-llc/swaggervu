@@ -21,6 +21,7 @@ const (
 	KindSwagger2  Kind = "Swagger 2.0"
 	KindOpenAPI30 Kind = "OpenAPI 3.0"
 	KindOpenAPI31 Kind = "OpenAPI 3.1"
+	KindOpenAPI32 Kind = "OpenAPI 3.2"
 	KindUnknown   Kind = "Unknown"
 )
 
@@ -54,6 +55,8 @@ func Detect(b []byte) (Kind, string) {
 	}
 	if v, ok := m["openapi"].(string); ok {
 		switch {
+		case strings.HasPrefix(v, "3.2"):
+			return KindOpenAPI32, v
 		case strings.HasPrefix(v, "3.1"):
 			return KindOpenAPI31, v
 		case strings.HasPrefix(v, "3.0"):
@@ -130,7 +133,9 @@ func Load(b []byte, sourceURL string) (*Spec, error) {
 // partially-invalid specs still yield their paths.
 func loadV3(jsonBytes []byte) (*openapi3.T, error) {
 	loader := openapi3.NewLoader()
-	loader.IsExternalRefsAllowed = true
+	// External references are network capabilities. They stay disabled until a
+	// policy-aware resolver can enforce host, redirect, depth, and byte budgets.
+	loader.IsExternalRefsAllowed = false
 	if doc, err := loader.LoadFromData(jsonBytes); err == nil {
 		return doc, nil
 	}
@@ -150,33 +155,15 @@ func loadV2(jsonBytes []byte) (*openapi3.T, error) {
 	return openapi2conv.ToV3(&doc2)
 }
 
-// sanitizeForLoad fixes the most common real-world schema violations that cause
-// strict parsers to reject an otherwise-usable spec, and strips the security
-// sections (not needed for endpoint enumeration / request generation) that are
-// a frequent source of parse failures. Returns the fixed JSON and whether it
-// changed anything.
+// sanitizeForLoad fixes a common real-world schema violation that causes strict
+// parsers to reject an otherwise-usable spec. Security declarations are never
+// removed because they are required evidence for authorization analysis.
 func sanitizeForLoad(jsonBytes []byte) ([]byte, bool) {
 	var m map[string]any
 	if json.Unmarshal(jsonBytes, &m) != nil {
 		return nil, false
 	}
 	changed := coerceScopes(m) // OAuth flow scopes: [] -> {}
-
-	// Strip security definitions — these reference OAuth flows and auth schemes
-	// that often violate the strict schema, and we don't need them to map/test
-	// endpoints.
-	for _, k := range []string{"security", "securityDefinitions"} {
-		if _, ok := m[k]; ok {
-			delete(m, k)
-			changed = true
-		}
-	}
-	if comp, ok := m["components"].(map[string]any); ok {
-		if _, ok := comp["securitySchemes"]; ok {
-			delete(comp, "securitySchemes")
-			changed = true
-		}
-	}
 	if !changed {
 		return nil, false
 	}
@@ -222,6 +209,8 @@ func detectFromMap(m map[string]any) (Kind, string) {
 	}
 	if v, ok := m["openapi"].(string); ok {
 		switch {
+		case strings.HasPrefix(v, "3.2"):
+			return KindOpenAPI32, v
 		case strings.HasPrefix(v, "3.1"):
 			return KindOpenAPI31, v
 		case strings.HasPrefix(v, "3.0"):

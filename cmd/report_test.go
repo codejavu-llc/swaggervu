@@ -15,12 +15,12 @@ func TestSeverityForReasons(t *testing.T) {
 		want    string
 	}{
 		{[]string{"secret: AWS Access Key ID"}, "High"},
-		{[]string{"broken access control"}, "High"},
-		{[]string{"auth not enforced"}, "Medium"},
+		{[]string{"authorization differential"}, "Medium"},
+		{[]string{"authentication invariant"}, "Medium"},
 		{[]string{"stack trace"}, "Medium"},
 		{[]string{"unauthenticated data"}, "Medium"},
 		{[]string{"secret: x", "unauthenticated data"}, "High"},
-		{[]string{"broken access control", "auth not enforced"}, "High"},
+		{[]string{"authorization differential", "authentication invariant"}, "Medium"},
 		{nil, "Info"},
 	}
 	for _, c := range cases {
@@ -37,11 +37,11 @@ func TestRenderScanMarkdown(t *testing.T) {
 			Method: "GET", URL: "https://api.example.com/users", Path: "/users",
 			Status: 200, ContentLength: 4096, Interesting: true,
 			Reasons: []string{"unauthenticated data", "secret: JWT"},
-			Secrets: []secrets.Finding{{Type: "JWT", Match: "eyJ..."}},
+			Secrets: []secrets.Finding{{Type: "JWT", Match: "[REDACTED]", Fingerprint: "hmac-sha256:1234", Length: 42}},
 		},
 	}
 	md := renderScanMarkdown(s, "https://api.example.com/swagger.json", results)
-	for _, want := range []string{"# SwaggerVu report — Petstore", "GET /users", "[High]", "curl -sk -X GET", "secret `JWT`"} {
+	for _, want := range []string{"# SwaggerVu report — Petstore", "GET /users", "[High]", "curl --fail-with-body -sS -X GET", "secret `JWT`"} {
 		if !strings.Contains(md, want) {
 			t.Errorf("markdown missing %q\n---\n%s", want, md)
 		}
@@ -50,7 +50,7 @@ func TestRenderScanMarkdown(t *testing.T) {
 
 func TestRenderScanMarkdownEmpty(t *testing.T) {
 	md := renderScanMarkdown(&spec.Spec{Title: "X"}, "src", nil)
-	if !strings.Contains(md, "No unauthenticated data exposure") {
+	if !strings.Contains(md, "No configured evidence signals") {
 		t.Errorf("expected empty-state message, got:\n%s", md)
 	}
 }

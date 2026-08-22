@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/codejavu-llc/swaggervu/internal/redact"
 	"github.com/codejavu-llc/swaggervu/internal/requestgen"
 	"github.com/spf13/cobra"
 )
@@ -45,25 +46,30 @@ var prepareCmd = &cobra.Command{
 func commandFor(tool string, r requestgen.Request) string {
 	switch strings.ToLower(tool) {
 	case "sqlmap":
-		cmd := fmt.Sprintf("sqlmap -u '%s' --batch", r.URL)
+		cmd := fmt.Sprintf("sqlmap -u '%s' --batch", redact.URL(r.URL))
 		if r.Method != "GET" {
 			cmd += " --method=" + r.Method
 		}
 		if r.Body != "" {
-			cmd += fmt.Sprintf(" --data='%s'", r.Body)
+			cmd += fmt.Sprintf(" --data='%s'", redact.Text(r.Body))
 		}
 		return cmd
 	default: // curl
 		var b strings.Builder
-		fmt.Fprintf(&b, "curl -sk -X %s '%s'", r.Method, r.URL)
+		fmt.Fprintf(&b, "curl --fail-with-body -sS -X %s '%s'", r.Method, redact.URL(r.URL))
 		for k, v := range r.Headers {
-			fmt.Fprintf(&b, " -H '%s: %s'", k, v)
+			if redact.Header(k) {
+				v = "[REDACTED]"
+			} else {
+				v = redact.Text(v)
+			}
+			fmt.Fprintf(&b, " -H '%s: %s'", redact.Text(k), v)
 		}
 		if r.ContentType != "" {
 			fmt.Fprintf(&b, " -H 'Content-Type: %s'", r.ContentType)
 		}
 		if r.Body != "" {
-			fmt.Fprintf(&b, " --data '%s'", r.Body)
+			fmt.Fprintf(&b, " --data '%s'", redact.Text(r.Body))
 		}
 		return b.String()
 	}

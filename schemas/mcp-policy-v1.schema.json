@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/codejavu-llc/swaggervu/main/schemas/mcp-policy-v1.schema.json",
+  "title": "SwaggerVu MCP startup policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["allowed_hosts", "allowed_roots", "allow_private", "active", "max_requests", "max_body_bytes", "rate"],
+  "properties": {
+    "allowed_hosts": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "allowed_roots": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "allow_private": {"type": "boolean"},
+    "active": {"type": "boolean"},
+    "max_requests": {"type": "integer", "minimum": 1},
+    "max_body_bytes": {"type": "integer", "minimum": 1},
+    "rate": {"type": "number", "exclusiveMinimum": 0}
+  },
+  "anyOf": [
+    {"properties": {"allowed_hosts": {"minItems": 1}}},
+    {"properties": {"allowed_roots": {"minItems": 1}}}
+  ]
+}

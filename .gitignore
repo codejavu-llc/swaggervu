@@ -1,3 +1,13 @@
 /swaggervu
 *.png
 evidence/
+dist/
+coverage.out
+*.sarif
+*.sbom.json
+*.spdx.json
+report.json
+report.md
+findings.json
+*.auth.json
+*.secrets.json

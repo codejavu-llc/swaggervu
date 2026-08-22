@@ -14,12 +14,12 @@ func TestAccessControlReasons(t *testing.T) {
 	data := bigJSON("a")
 	other := bigJSON("z")
 
-	// Spec requires auth, but anon got data -> broken access control.
-	if got := accessControlReasons(true, 200, len(data), data, 200, data); len(got) != 1 || got[0] != "broken access control" {
+	// Spec requires auth, but anon got data -> differential, not confirmed BOLA.
+	if got := accessControlReasons(true, 200, len(data), data, 200, data); len(got) != 1 || got[0] != "authorization differential" {
 		t.Errorf("requiresAuth case: got %v", got)
 	}
 	// No spec requirement, anon == authed -> token ignored.
-	if got := accessControlReasons(false, 200, len(data), data, 200, data); len(got) != 1 || got[0] != "auth not enforced" {
+	if got := accessControlReasons(false, 200, len(data), data, 200, data); len(got) != 1 || got[0] != "authentication invariant" {
 		t.Errorf("token-ignored case: got %v", got)
 	}
 	// No spec requirement, anon != authed -> just unauthenticated data.

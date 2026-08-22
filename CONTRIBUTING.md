@@ -1,46 +1,83 @@
 # Contributing to SwaggerVu
 
-Thanks for helping make SwaggerVu better. Contributions of all sizes are welcome
-— a new spec path, a secret regex, a verified CVE, a bug fix, or docs.
+SwaggerVu welcomes code, fixtures, documentation, false-positive reports, discovery
+paths, rules, and research. Small, focused pull requests are easiest to review.
 
-## Build & test
+By participating, follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Build and validate
+
+SwaggerVu requires Go 1.26 or newer.
 
 ```bash
-git clone https://github.com/codejavu-llc/swaggervu && cd swaggervu
-go build -o swaggervu .
-go test ./...
+git clone https://github.com/codejavu-llc/swaggervu
+cd swaggervu
+go mod download
+gofmt -w .
 go vet ./...
+go test -race ./...
+go build ./...
 ```
 
-The `exploit` and headless-detection paths need Chrome or Chromium installed.
+Before opening a PR, also run these when practical:
 
-## Project layout
-
-```
-cmd/        cobra subcommands (one file per command)
-internal/   engine packages (discover, scan, detect, exploit, secrets, ...)
-data/       embedded corpus: paths, secret regexes, content matchers, CVE registry
+```bash
+go run github.com/securego/gosec/v2/cmd/gosec@v2.28.0 -quiet ./...
+go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 ```
 
-## Easy, high-value contributions
+Chrome/Chromium is optional and needed only for browser-backed verification.
 
-- **Discovery paths** — add real-world spec/UI locations to `data/paths.go`
-  (keep the priority-first ordering; entries are deduped automatically).
-- **Secret patterns** — add high-signal regexes to `data/regexes.go`. Prefer
-  patterns with low false-positive rates; add a test case in
-  `internal/secrets/secrets_test.go`.
-- **CVE registry** — add to `data/cves.go` **only** entries you have verified
-  against a primary source (NVD or a vendor advisory), and wire a real headless
-  assertion into `internal/exploit`. We do not ship unverified CVEs.
+## Layout
+
+```text
+cmd/        CLI commands and rendering
+data/       embedded discovery/rule/CVE catalog and provenance
+internal/   network policy, parsing, scanning, redaction, browser, and MCP engines
+schemas/    versioned machine-readable output/policy contracts
+docs/       user semantics, MCP guide, research, and roadmap
+```
+
+## Evidence rule requirements
+
+Every new rule must include:
+
+1. A narrow claim: exactly what observation the rule supports.
+2. At least one positive fixture and one realistic negative fixture.
+3. A documented evidence level and confidence.
+4. Redaction tests if any response, header, URL, console, or credential-like value is
+   handled.
+5. A primary source for a CVE or standards claim.
+
+Do not label a size/status heuristic as BOLA, broken access control, sensitive-data
+exposure, or a CVE. Strong labels require independent evidence matching that claim.
+
+For `data/cves.go`, catalog-only entries use `Testable: false`. Setting it to true
+requires a technique-specific assertion in `internal/exploit`, positive and negative
+tests, an affected-version statement, and provenance in
+[`data/CVE_PROVENANCE.md`](data/CVE_PROVENANCE.md).
+
+## Safety requirements
+
+- New network execution must have explicit scope, timeout, rate, request-count, and
+  response-size controls.
+- Active or potentially mutating behavior needs an explicit gate.
+- Credentials must be origin-bound and must never appear in output or fixtures.
+- MCP gets no arbitrary URL fetch, shell, browser, credentials, or runtime scope
+  expansion.
+- External references stay disabled until they can use the same policy engine.
+- Keep user output schemas backward compatible or introduce a new version.
+
+Security-sensitive architecture changes should explain their threat model in the PR.
 
 ## Pull requests
 
-- Keep changes focused and run `go test ./...` + `go vet ./...` before opening.
-- Match the surrounding code style and comment density.
-- For new behavior, add or update a test.
+- Open an issue first for major product-direction or schema changes.
+- Keep generated binaries and real engagement data out of commits.
+- Add a changelog entry for user-visible behavior.
+- Complete the PR checklist and state which commands you ran.
+- Maintainers may ask for a minimized fixture before accepting a new heuristic.
 
-## Scope & safety
-
-SwaggerVu stays **simple, light, and non-destructive by default**. Please don't
-add Docker, daemons, heavy dependencies, evasion/anti-detection features, or
-mass-targeting helpers. New active capabilities must be opt-in behind a flag.
+Good first contributions include parser fixtures from real-world-but-sanitized specs,
+false-positive reductions, docs examples, cross-platform tests, and high-confidence
+discovery paths.

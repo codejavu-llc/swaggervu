@@ -6,6 +6,59 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0-rc.1] - 2026-08-22
+
+### Added
+
+- Simple bare-command workflow: local/remote spec inventory, or a bounded HTTPS-only
+  25-path documentation check for a hostname.
+- `diff` for added/removed operations and `doctor` for installation/browser checks.
+- Local stdio MCP server with seven structured tools, immutable hostname/filesystem
+  scope, request and body budgets, DNS/private-address defenses, safe-root resolution,
+  resources, protocol tests, and an explicit startup gate for GET/HEAD execution.
+- Versioned finding, inspect, diff, and MCP output contracts; stable finding IDs,
+  confidence, evidence levels, and finding status.
+- OpenAPI 3.2 detection and inventory fixture coverage; parser/runtime dependencies
+  updated to current releases.
+- Syft SBOMs and GitHub build-provenance attestations for release archives.
+- Pinned-action CI, CodeQL, dependency review, Dependabot, race tests, fuzz seed
+  corpora, gosec, govulncheck, cross-platform builds, and community templates.
+
+### Changed
+
+- `scan` now requires `--active`; non-GET/HEAD methods still additionally require
+  `--risk`. The hidden legacy `all` command also requires `--active`, and its browser
+  phase requires `--verify`.
+- `exploit` is now presented as `verify` (`exploit` remains an alias) and uses a local,
+  process-bound benign PoC by default instead of third-party payload hosts.
+- Active default generation is restricted to GET/HEAD. Output language now describes
+  response-size and auth comparisons as signals/differentials rather than BOLA or
+  confirmed broken access control.
+- Sensitive headers and auth comparisons require an exact `--auth-origin`; redirects
+  are same-origin and response bodies are capped.
+- External OpenAPI references remain disabled until they can use the same scoped
+  resolver policy.
+
+### Security
+
+- Secret values are never stored in findings. Outputs contain a process-local HMAC
+  fingerprint and length only; the compatibility `match` field is always redacted.
+- URL userinfo is removed and every query value is replaced before logging, JSON, MCP,
+  or Markdown output. Browser console content is no longer serialized. Evidence files
+  use owner-only permissions.
+- Public network access denies private and special-use addresses by default and
+  revalidates DNS at dial time to reduce SSRF and DNS-rebinding risk.
+- Browser TLS verification follows the explicit global `--insecure` choice. Ambient
+  JavaScript dialogs no longer count as XSS evidence.
+
+### Fixed
+
+- Corrected the CVE registry: CVE-2025-8191 is application-specific, CVE-2018-25031
+  is remote-definition spoofing, and the testable remote-spec XSS chain is
+  CVE-2025-54432. Catalog-only entries are no longer presented as executed checks.
+- Relaxed parsing no longer deletes security declarations to make an invalid spec load.
+- Remote-spec payload query parameters are URL-encoded correctly.
+
 ## [1.0.2] - 2026-06-23
 
 ### Changed
@@ -72,7 +125,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `prepare` curl/sqlmap command emission per endpoint.
 - Global rate-limited, concurrent HTTP client shared across modules.
 
-[Unreleased]: https://github.com/codejavu-llc/swaggervu/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/codejavu-llc/swaggervu/compare/v1.1.0-rc.1...HEAD
+[1.1.0-rc.1]: https://github.com/codejavu-llc/swaggervu/compare/v1.0.2...v1.1.0-rc.1
 [1.0.2]: https://github.com/codejavu-llc/swaggervu/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/codejavu-llc/swaggervu/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/codejavu-llc/swaggervu/releases/tag/v1.0.0

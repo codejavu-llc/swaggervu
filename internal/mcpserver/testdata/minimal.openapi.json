@@ -1,0 +1,12 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "SwaggerVu MCP fixture", "version": "1.0.0"},
+  "servers": [{"url": "https://api.example.com"}],
+  "paths": {
+    "/health": {
+      "get": {
+        "responses": {"200": {"description": "healthy"}}
+      }
+    }
+  }
+}

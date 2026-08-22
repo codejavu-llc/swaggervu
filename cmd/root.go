@@ -13,6 +13,7 @@ import (
 
 	"github.com/codejavu-llc/swaggervu/internal/httpclient"
 	"github.com/codejavu-llc/swaggervu/internal/output"
+	"github.com/codejavu-llc/swaggervu/internal/redact"
 	"github.com/spf13/cobra"
 )
 
@@ -43,23 +44,28 @@ func resolveVersion() string {
 
 // Global flags shared across subcommands.
 var (
-	flagConcurrency int
-	flagRate        float64
-	flagTimeout     int
-	flagInsecure    bool
-	flagProxy       string
-	flagUserAgent   string
-	flagRandomUA    bool
-	flagHeaders     []string
-	flagQuiet       bool
-	flagOutput      string
-	flagJSON        bool
+	flagConcurrency  int
+	flagRate         float64
+	flagTimeout      int
+	flagInsecure     bool
+	flagProxy        string
+	flagUserAgent    string
+	flagRandomUA     bool
+	flagHeaders      []string
+	flagQuiet        bool
+	flagOutput       string
+	flagJSON         bool
+	flagAllowedHosts []string
+	flagAllowPrivate bool
+	flagMaxRequests  int64
+	flagMaxBodyMB    int64
+	flagAuthOrigins  []string
 )
 
 var log = &output.Logger{}
 
 var rootCmd = &cobra.Command{
-	Use:   "swaggervu",
+	Use:   "swaggervu [target-or-spec]",
 	Short: "SwaggerVu — all-in-one Swagger/OpenAPI discovery, audit & testing tool",
 	Long: `SwaggerVu discovers, parses, audits and (opt-in) tests Swagger/OpenAPI APIs
 across many targets at once.
@@ -72,8 +78,31 @@ for ensuring you have permission to test every target you supply.`,
 	// Keep shell completion working, but hide the auto-generated `completion`
 	// subcommand from help to keep the command list focused.
 	CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	Args:              cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return cmd.Help()
+		}
+		return runSimple(cmd, args[0])
+	},
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		log.Quiet = flagQuiet
+		if _, err := httpclient.NormalizeAllowedHosts(flagAllowedHosts); err != nil {
+			return err
+		}
+		switch {
+		case flagConcurrency < 1:
+			return fmt.Errorf("--concurrency must be at least 1")
+		case flagRate < 0:
+			return fmt.Errorf("--rate cannot be negative")
+		case flagTimeout < 1:
+			return fmt.Errorf("--timeout must be at least 1 second")
+		case flagMaxRequests < 0:
+			return fmt.Errorf("--max-requests cannot be negative")
+		case flagMaxBodyMB < 1 || flagMaxBodyMB > 8192:
+			return fmt.Errorf("--max-body-mb must be between 1 and 8192")
+		}
+		return nil
 	},
 }
 
@@ -89,7 +118,7 @@ func Execute() {
 		stop()
 	}()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		fmt.Fprintln(os.Stderr, "error:", redact.Message(err.Error()))
 		os.Exit(1)
 	}
 }
@@ -107,6 +136,11 @@ func init() {
 	pf.BoolVarP(&flagQuiet, "quiet", "q", false, "suppress banner and status output")
 	pf.StringVarP(&flagOutput, "output", "o", "", "write results to file instead of stdout")
 	pf.BoolVar(&flagJSON, "json", false, "output results as JSON")
+	pf.StringSliceVar(&flagAllowedHosts, "allow-host", nil, "restrict network access to an exact hostname (repeatable)")
+	pf.BoolVar(&flagAllowPrivate, "allow-private", false, "allow loopback, private, and link-local targets")
+	pf.Int64Var(&flagMaxRequests, "max-requests", 10000, "hard request budget for this process (0 = unlimited)")
+	pf.Int64Var(&flagMaxBodyMB, "max-body-mb", 5, "maximum response body MiB retained per request")
+	pf.StringSliceVar(&flagAuthOrigins, "auth-origin", nil, "origin allowed to receive sensitive headers, e.g. https://api.example.com (repeatable)")
 }
 
 // buildClient constructs the shared HTTP client from global flags.
@@ -120,7 +154,24 @@ func buildClient(followRedirect bool) (*httpclient.Client, error) {
 	opts.RatePerSecond = flagRate
 	opts.FollowRedirect = followRedirect
 	opts.Headers = parseHeaders(flagHeaders)
+	opts.AllowedHosts = append([]string(nil), flagAllowedHosts...)
+	opts.AllowPrivate = flagAllowPrivate
+	opts.MaxRequests = flagMaxRequests
+	opts.MaxBodyBytes = flagMaxBodyMB << 20
+	opts.CredentialOrigins = append([]string(nil), flagAuthOrigins...)
+	if hasSensitiveHeaders(opts.Headers) && len(opts.CredentialOrigins) == 0 {
+		return nil, fmt.Errorf("sensitive -H header requires --auth-origin to prevent credential forwarding")
+	}
 	return httpclient.New(opts)
+}
+
+func hasSensitiveHeaders(headers map[string]string) bool {
+	for name := range headers {
+		if httpclient.IsSensitiveHeader(name) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseHeaders(hs []string) map[string]string {
@@ -149,7 +200,7 @@ func readTargets(file string, args []string) ([]string, error) {
 		add(a)
 	}
 	if file != "" {
-		f, err := os.Open(file)
+		f, err := os.Open(file) // #nosec G304 -- explicit operator-selected target list
 		if err != nil {
 			return nil, err
 		}

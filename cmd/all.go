@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -14,6 +13,7 @@ import (
 	"github.com/codejavu-llc/swaggervu/internal/discover"
 	"github.com/codejavu-llc/swaggervu/internal/exploit"
 	"github.com/codejavu-llc/swaggervu/internal/output"
+	"github.com/codejavu-llc/swaggervu/internal/redact"
 	"github.com/codejavu-llc/swaggervu/internal/requestgen"
 	"github.com/codejavu-llc/swaggervu/internal/scan"
 	"github.com/codejavu-llc/swaggervu/internal/secrets"
@@ -29,6 +29,8 @@ var (
 	allShowAll bool
 	allMD      bool
 	allAuth    []string
+	allVerify  bool
+	allActive  bool
 )
 
 // waybackAutoMax is the largest target count for which the autopilot auto-seeds
@@ -57,17 +59,15 @@ type specReport struct {
 var allCmd = &cobra.Command{
 	Use:     "all <domain...>",
 	Aliases: []string{"auto", "autopilot"},
-	Short:   "Autopilot: one command runs every phase — discover, audit, secrets, exploit",
-	Long: `Give it a domain and it does everything, no flags required: seed candidates
+	Short:   "Legacy explicit autopilot for discovery, evidence collection, and optional verification",
+	Long: `Legacy autopilot for authorized targets: seed candidates
 from the Wayback Machine, probe http+https for exposed Swagger/OpenAPI, parse every
 spec, enumerate and audit endpoints (skipping 401/403), scan specs and responses for
-leaked secrets, and confirm Swagger-UI client-side CVEs in a headless browser with a
-benign built-in PoC.
+leaked-secret signals, and optionally verify a testable Swagger UI client-side chain
+in a headless browser using a benign local PoC.
 
-For authorized testing only — you are responsible for every target you supply. Every
-phase is non-destructive by default: it only reads, and the exploit phase fires a
-self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
-(POST/PUT/PATCH/DELETE) are NEVER sent unless you opt in with --risk.`,
+This command sends network requests only with --active. Browser verification also
+requires --verify. Non-GET/HEAD HTTP methods require the additional --risk flag.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		log.Banner(version)
 		ctx := cmd.Context()
@@ -79,15 +79,24 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 		if len(targets) == 0 {
 			return fmt.Errorf("no domain provided (give a domain, -l file, or stdin)")
 		}
+		if !allActive {
+			return fmt.Errorf("legacy autopilot sends discovery and API requests; re-run with --active or use 'swaggervu <target>' for bounded inspection")
+		}
 
-		report := &allReport{Domains: targets}
+		report := &allReport{Domains: sanitizedTargets(targets)}
+		if len(allAuth) > 0 && len(flagAuthOrigins) == 0 {
+			return fmt.Errorf("--auth requires --auth-origin to bind credentials to an exact origin")
+		}
 
 		// ---- Seed candidates from the Wayback Machine (read-only) --------
 		// Archived URLs are already specific spec/UI URLs, so they are
 		// direct-probed below (not appended to targets, which get path-probed).
 		var waybackURLs []string
 		if len(targets) <= waybackAutoMax {
-			wc, _ := buildClient(true)
+			wc, err := buildClient(true)
+			if err != nil {
+				return err
+			}
 			for _, t := range targets {
 				if ctx.Err() != nil {
 					break
@@ -148,7 +157,7 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 		// Promote UI pages to specs by following them (static + headless fallback).
 		sources := sortedKeys(specURLs)
 		for _, ui := range uiPages {
-			if s, err := loadSpecFromSource(ctx, ui); err == nil && s != nil && !specURLs[s.SourceURL] {
+			if s, err := loadSpecFromSourceMode(ctx, ui, allVerify); err == nil && s != nil && !specURLs[s.SourceURL] {
 				specURLs[s.SourceURL] = true
 				sources = append(sources, s.SourceURL)
 			}
@@ -159,7 +168,10 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 
 		// ---- Phase 2: PARSE + AUDIT + SECRETS per spec -------------------
 		log.Info("phase 2/3 — parsing, auditing & secret-scanning %d spec(s)", len(sources))
-		sc, _ := buildClient(false)
+		sc, err := buildClient(false)
+		if err != nil {
+			return err
+		}
 		// Skip specs that would fire an identical set of requests (e.g. the .json
 		// and .yaml of the same API on one host). Two specs are duplicates when
 		// they share an effective base URL and endpoint set; different hosts
@@ -178,7 +190,7 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 				continue
 			}
 			auditedSig[sig] = true
-			sr := specReport{URL: src, Kind: s.Kind, Title: s.Title, Endpoints: len(eps)}
+			sr := specReport{URL: redact.URL(src), Kind: s.Kind, Title: redact.Text(s.Title), Endpoints: len(eps)}
 			log.Info("auditing %s — %s '%s' (%d endpoints)", src, s.Kind, s.Title, len(eps))
 
 			scan.Run(ctx, sc, s, scan.Config{Concurrency: flagConcurrency, IncludeRisk: allRisk, EmitAll: allShowAll, AuthHeaders: parseHeaders(allAuth), GenOpts: genOpts},
@@ -187,7 +199,7 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 						sr.Interesting = append(sr.Interesting, r)
 						log.Good("  [%s] %d bytes  %s %s", output.Status(r.Status), r.ContentLength, r.Method, r.URL)
 						for _, f := range r.Secrets {
-							log.Warn("    secret %s: %s", f.Type, f.Match)
+							log.Warn("    secret %s: %s (%d bytes)", f.Type, f.Fingerprint, f.Length)
 						}
 					} else if allShowAll {
 						log.Info("  [%s] %d bytes  %s %s", output.Status(r.Status), r.ContentLength, r.Method, r.URL)
@@ -198,7 +210,7 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 			if b, err := json.Marshal(s.Raw); err == nil {
 				sr.Secrets = secrets.Scan(string(b))
 				for _, f := range sr.Secrets {
-					log.Warn("  spec secret %s: %s", f.Type, f.Match)
+					log.Warn("  spec secret %s: %s (%d bytes)", f.Type, f.Fingerprint, f.Length)
 				}
 			}
 			report.Specs = append(report.Specs, sr)
@@ -213,10 +225,39 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 		// headless browser out across a whole subdomain list that yielded no UI.
 		candidates := dedupFold(uiPages)
 		if len(candidates) == 0 && len(targets) == 1 {
-			candidates = targets
+			candidate := targets[0]
+			if !strings.Contains(candidate, "://") {
+				candidate = "https://" + candidate
+			}
+			candidates = []string{candidate}
 		}
-		log.Info("phase 3/3 — confirming client-side CVEs on %d candidate(s)", len(candidates))
-		eng, err := exploit.New(allScreens)
+		if !allVerify {
+			log.Info("phase 3/3 — browser verification skipped (enable explicitly with --verify)")
+			printAllSummary(report)
+			if allMD {
+				md := renderAllMarkdown(report)
+				if flagOutput != "" {
+					return writePrivateFile(flagOutput, []byte(md))
+				}
+				fmt.Println(md)
+				return nil
+			}
+			if flagJSON || flagOutput != "" {
+				return writeReport(report)
+			}
+			return nil
+		}
+		log.Info("phase 3/3 — verifying client-side behavior on %d candidate(s)", len(candidates))
+		validator, err := buildClient(false)
+		if err != nil {
+			return err
+		}
+		for _, candidate := range candidates {
+			if err := validator.ValidateURL(ctx, candidate); err != nil {
+				return fmt.Errorf("browser target denied: %w", err)
+			}
+		}
+		eng, err := exploit.New(allScreens, flagInsecure)
 		if err != nil {
 			// Headless browser unavailable (e.g. Chrome not installed). Skip the
 			// phase gracefully rather than failing the whole run.
@@ -230,6 +271,10 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 				for _, param := range data.InjectionParams() {
 					cves := strings.Join(data.CVEsForParam(param), ",")
 					f := eng.Test(ctx, c, param, payloadFor(param, nil), cves, "", allScreens != "")
+					if f.Type != "dom-xss" {
+						f.CVE = ""
+						cves = "SWAGGER-REMOTE-SPEC-HTML"
+					}
 					if f.Vulnerable {
 						log.Good("VULNERABLE [%s] %s via %s — %s (%s)", f.Type, c, param, cves, f.Signal)
 						if f.Evidence != "" {
@@ -249,7 +294,7 @@ self-contained XSS check (no data is exfiltrated). Destructive HTTP methods
 		if allMD {
 			md := renderAllMarkdown(report)
 			if flagOutput != "" {
-				return os.WriteFile(flagOutput, []byte(md), 0o644)
+				return writePrivateFile(flagOutput, []byte(md))
 			}
 			fmt.Println(md)
 			return nil
@@ -291,7 +336,7 @@ func writeReport(r *allReport) error {
 		return err
 	}
 	if flagOutput != "" {
-		return os.WriteFile(flagOutput, b, 0o644)
+		return writePrivateFile(flagOutput, b)
 	}
 	fmt.Println(string(b))
 	return nil
@@ -303,6 +348,18 @@ func sortedKeys(m map[string]bool) []string {
 		out = append(out, k)
 	}
 	sort.Strings(out)
+	return out
+}
+
+func sanitizedTargets(targets []string) []string {
+	out := make([]string, 0, len(targets))
+	for _, target := range targets {
+		if strings.Contains(target, "://") {
+			out = append(out, redact.URL(target))
+		} else {
+			out = append(out, redact.Text(target))
+		}
+	}
 	return out
 }
 
@@ -326,12 +383,16 @@ func dedupFold(in []string) []string {
 }
 
 func init() {
+	allCmd.Hidden = true
+	allCmd.Deprecated = "use 'swaggervu <target>' for bounded inspection or 'swaggervu scan <spec> --active' for operation testing"
 	f := allCmd.Flags()
 	f.StringVarP(&allFile, "list", "l", "", "file of domains/targets (one per line)")
-	f.BoolVar(&allRisk, "risk", false, "also send non-GET methods (POST/PUT/PATCH/DELETE) — may modify target data")
+	f.BoolVar(&allRisk, "risk", false, "also send methods beyond GET/HEAD — may modify target data")
 	f.BoolVarP(&allShowAll, "show-all", "V", false, "log every probed request, not just findings (incl. non-200; non-GET methods need --risk)")
 	f.StringVar(&allScreens, "screenshots", "", "directory to save exploit screenshot evidence")
 	f.BoolVar(&allMD, "md", false, "emit a paste-ready Markdown report (use with -o report.md)")
-	f.StringArrayVar(&allAuth, "auth", nil, "auth header for an authenticated comparison run, repeatable (e.g. --auth 'Authorization: Bearer TOKEN'); enables broken-access-control detection")
+	f.StringArrayVar(&allAuth, "auth", nil, "auth header for an authenticated comparison run, repeatable (e.g. --auth 'Authorization: Bearer TOKEN')")
+	f.BoolVar(&allVerify, "verify", false, "explicitly enable local-canary browser verification")
+	f.BoolVar(&allActive, "active", false, "required: execute the legacy autopilot network workflow")
 	rootCmd.AddCommand(allCmd)
 }

@@ -50,11 +50,11 @@ var secretsCmd = &cobra.Command{
 
 		findings := secrets.Scan(corpus)
 		for _, f := range findings {
-			log.Good("%s: %s", f.Type, f.Match)
+			log.Good("%s: %s (%d bytes, value redacted)", f.Type, f.Fingerprint, f.Length)
 			if flagJSON {
 				sink.Add(f)
 			} else {
-				sink.WriteLine(fmt.Sprintf("%s\t%s", f.Type, f.Match))
+				sink.WriteLine(fmt.Sprintf("%s\t%s\t%d", f.Type, f.Fingerprint, f.Length))
 			}
 		}
 		log.Info("secrets scan complete: %d finding(s)", len(findings))

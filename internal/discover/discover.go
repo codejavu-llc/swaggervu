@@ -5,7 +5,8 @@ package discover
 
 import (
 	"context"
-	"math/rand"
+	crand "crypto/rand"
+	"math/big"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -182,7 +183,12 @@ const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
 func randString(n int) string {
 	b := make([]byte, n)
 	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
+		value, err := crand.Int(crand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			b[i] = charset[0]
+			continue
+		}
+		b[i] = charset[value.Int64()]
 	}
 	return string(b)
 }

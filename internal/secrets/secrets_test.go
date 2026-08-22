@@ -12,6 +12,9 @@ func TestScanFindsKnownSecrets(t *testing.T) {
 	found := Scan(body)
 	want := map[string]bool{"AWS Access Key ID": false, "GitHub Token (classic)": false, "JWT": false}
 	for _, f := range found {
+		if f.Match != "[REDACTED]" || f.Fingerprint == "" || f.Length == 0 {
+			t.Fatalf("finding was not safely redacted: %#v", f)
+		}
 		if _, ok := want[f.Type]; ok {
 			want[f.Type] = true
 		}

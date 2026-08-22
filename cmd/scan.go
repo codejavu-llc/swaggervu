@@ -21,11 +21,13 @@ var (
 	scanMD      bool
 	scanAuth    []string
 	scanEmit    string
+	scanActive  bool
 )
 
 var scanCmd = &cobra.Command{
 	Use:   "scan [url|file]",
-	Short: "Audit an API: fire one request per operation, flag unauth & data leaks",
+	Short: "Run an explicit request profile and record security evidence signals",
+	Args:  cobra.MaximumNArgs(1),
 	Long: `Generate a request for every operation in the spec and report which
 endpoints are reachable without auth (401/403 are skipped) and which leak data
 or secrets. The spec document itself is also scanned for hardcoded credentials.
@@ -62,13 +64,16 @@ requests are sent).`,
 			}
 			return nil
 		}
+		if !scanActive {
+			return fmt.Errorf("scan executes API operations; re-run with --active after reviewing scope and request budget")
+		}
 		log.Info("loaded %s '%s' — auditing endpoints", s.Kind, s.Title)
 
 		// Secrets embedded in the spec document itself (titles, descriptions,
 		// examples, server URLs). The per-response secret scan happens inside
 		// scan.Run; this catches creds hardcoded in the definition — matching `all`.
 		for _, f := range scanSpecDocument(s) {
-			log.Warn("spec secret %s: %s", f.Type, f.Match)
+			log.Warn("spec secret %s: %s (%d bytes)", f.Type, f.Fingerprint, f.Length)
 		}
 
 		client, err := buildClient(false)
@@ -92,7 +97,10 @@ requests are sent).`,
 			GenOpts:     genOpts,
 		}
 		if len(cfg.AuthHeaders) > 0 {
-			log.Info("auth-aware mode: probing each endpoint with and without auth to detect broken access control")
+			if len(flagAuthOrigins) == 0 {
+				return fmt.Errorf("--auth requires --auth-origin to bind credentials to an exact origin")
+			}
+			log.Info("auth-aware mode: comparing anonymous and authenticated responses for authorization signals")
 		}
 
 		interesting := 0
@@ -144,10 +152,11 @@ func init() {
 	f := scanCmd.Flags()
 	f.StringVarP(&scanURL, "url", "u", "", "URL or file of the API definition")
 	f.StringVar(&scanEmit, "emit", "", "print-only: emit ready-to-run commands instead of scanning ('curl' or 'sqlmap')")
-	f.BoolVar(&scanRisk, "risk", false, "include non-GET methods (POST/PUT/PATCH/DELETE) — use with care")
+	f.BoolVar(&scanRisk, "risk", false, "include methods beyond GET/HEAD — use with care")
 	f.BoolVarP(&scanShowAll, "show-all", "V", false, "log every probed request, not just findings (incl. non-200; non-GET methods need --risk)")
 	f.StringVar(&scanBase, "base-url", "", "override the API base/server URL")
 	f.BoolVar(&scanMD, "md", false, "emit a paste-ready Markdown report of findings (use with -o report.md)")
-	f.StringArrayVar(&scanAuth, "auth", nil, "auth header for an authenticated comparison run, repeatable (e.g. --auth 'Authorization: Bearer TOKEN'); enables broken-access-control detection")
+	f.StringArrayVar(&scanAuth, "auth", nil, "auth header for an authenticated comparison run, repeatable (e.g. --auth 'Authorization: Bearer TOKEN')")
+	f.BoolVar(&scanActive, "active", false, "required: execute the approved request profile")
 	rootCmd.AddCommand(scanCmd)
 }
