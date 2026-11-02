@@ -152,6 +152,9 @@ func loadV2(jsonBytes []byte) (*openapi3.T, error) {
 	if err := json.Unmarshal(jsonBytes, &doc2); err != nil {
 		return nil, err
 	}
+	if err := resolveV2PathRefs(&doc2, jsonBytes); err != nil {
+		return nil, err
+	}
 	return openapi2conv.ToV3(&doc2)
 }
 

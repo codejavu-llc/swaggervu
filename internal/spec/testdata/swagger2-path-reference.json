@@ -1,0 +1,21 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Cake inventory",
+    "version": "1"
+  },
+  "paths": {
+    "/cakes": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/cakes-copy": {
+      "$ref": "#/paths/~1cakes"
+    }
+  }
+}

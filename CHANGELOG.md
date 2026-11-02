@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Resolve same-document Swagger 2.0 Path Item references before conversion, so
+  operation inventories and diffs retain referenced operations. Invalid or cyclic
+  references now report an error instead of silently omitting operations.
+  External Path Item references remain unsupported and report an error.
+
 ## [1.1.0-rc.1] - 2026-08-22
 
 ### Added
