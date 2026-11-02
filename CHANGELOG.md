@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Honor operation and path server settings when generating requests, while
+  preserving explicit `--base-url` overrides and the document server default.
+
 ## [1.1.0-rc.1] - 2026-08-22
 
 ### Added

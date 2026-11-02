@@ -57,10 +57,9 @@ type Request struct {
 // as read-intent, not guaranteed non-mutating.
 var safeMethods = map[string]bool{"GET": true, "HEAD": true}
 
-// ResolveBase returns the effective base URL Build will use: the explicit
-// opts.BaseURL when set, otherwise the spec's server URL, trimmed of any
-// trailing slash. Callers use it to avoid redundant re-scans against a base
-// that matches the one already used.
+// ResolveBase returns the explicit opts.BaseURL or the document's default base,
+// trimmed of any trailing slash. Build may use a more specific path or operation
+// server when no explicit override is set.
 func ResolveBase(s *spec.Spec, opts Options) string {
 	base := opts.BaseURL
 	if base == "" {
@@ -98,7 +97,18 @@ func Build(s *spec.Spec, opts Options) []Request {
 				continue
 			}
 			op := item.Operations()[method]
-			req := buildOne(base, method, p, item, op, opts)
+			operationBase := base
+			if opts.BaseURL == "" {
+				// OpenAPI server selection is operation > path > document.
+				// Keep the existing first-server choice at each selected level.
+				if len(item.Servers) > 0 && item.Servers[0] != nil {
+					operationBase = strings.TrimRight(item.Servers[0].URL, "/")
+				}
+				if op.Servers != nil && len(*op.Servers) > 0 && (*op.Servers)[0] != nil {
+					operationBase = strings.TrimRight((*op.Servers)[0].URL, "/")
+				}
+			}
+			req := buildOne(operationBase, method, p, item, op, opts)
 			req.RequiresAuth = requiresAuth(s.Doc, op)
 			reqs = append(reqs, req)
 		}
