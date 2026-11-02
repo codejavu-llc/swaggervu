@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Do not classify a response as anonymous access when its request carried a
+  nonempty credential-like header. Apply the same rule to the baseline of auth
+  comparisons, preserving other response evidence and existing request behavior.
+
 ## [1.1.0-rc.1] - 2026-08-22
 
 ### Added

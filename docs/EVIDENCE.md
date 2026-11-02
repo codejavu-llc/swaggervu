@@ -18,6 +18,15 @@ researcher review.
 
 ## What findings do not claim
 
+- A request sent with a nonempty credential-like header is not treated as an
+  anonymous baseline. This includes headers supplied with `-H` or generated for
+  an operation. Anonymous-access reasons are suppressed for that response;
+  other response evidence is still evaluated. Header names use the existing
+  credential-header classification. This does not prove a supplied value works
+  or detect every possible authentication mechanism.
+- `--auth` adds headers to a second request. Global `-H` headers apply to both
+  requests. Use `--auth` alone for access values when an anonymous baseline is
+  needed; a credentialed baseline cannot establish anonymous access.
 - `unauthenticated data` does not by itself mean sensitive data, missing auth, or
   Broken Object Level Authorization (BOLA).
 - `authorization differential` does not prove cross-user object access. Confirming

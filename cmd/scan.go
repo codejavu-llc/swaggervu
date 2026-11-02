@@ -100,7 +100,7 @@ requests are sent).`,
 			if len(flagAuthOrigins) == 0 {
 				return fmt.Errorf("--auth requires --auth-origin to bind credentials to an exact origin")
 			}
-			log.Info("auth-aware mode: comparing anonymous and authenticated responses for authorization signals")
+			log.Info("auth-aware mode: comparing responses before and after adding --auth headers")
 		}
 
 		interesting := 0
