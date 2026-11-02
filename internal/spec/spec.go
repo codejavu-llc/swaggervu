@@ -93,6 +93,11 @@ func Load(b []byte, sourceURL string) (*Spec, error) {
 			jsonBytes = jb
 		}
 	}
+	if kind == KindOpenAPI31 {
+		if normalized, changed := normalize31BooleanSchemas(jsonBytes); changed {
+			jsonBytes = normalized
+		}
+	}
 
 	switch kind {
 	case KindSwagger2:
