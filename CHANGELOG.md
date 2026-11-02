@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Report output-write failures from `diff` in both JSON and text modes instead
+  of returning success when its stdout result cannot be delivered.
+
 ## [1.1.0-rc.1] - 2026-08-22
 
 ### Added
