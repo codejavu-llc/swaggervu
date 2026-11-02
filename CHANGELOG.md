@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Redact matched values in added and removed operation labels in JSON and text
+  comparison output, while comparing original operations to preserve real changes.
+
 ## [1.1.0-rc.1] - 2026-08-22
 
 ### Added
