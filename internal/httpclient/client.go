@@ -164,6 +164,9 @@ func (c *Client) ValidateURL(ctx context.Context, raw string) error {
 // DoWithHeaders performs a request, applying per-request headers on top of the
 // client defaults (used to send the generated Content-Type and header params).
 func (c *Client) DoWithHeaders(ctx context.Context, method, url string, body io.Reader, headers map[string]string) (*Response, error) {
+	if err := takeContextRequest(ctx); err != nil {
+		return nil, err
+	}
 	if c.opts.MaxRequests > 0 && c.requests.Add(1) > c.opts.MaxRequests {
 		return nil, ErrRequestBudget
 	}

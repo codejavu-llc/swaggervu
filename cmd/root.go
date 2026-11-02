@@ -102,6 +102,9 @@ for ensuring you have permission to test every target you supply.`,
 		case flagMaxBodyMB < 1 || flagMaxBodyMB > 8192:
 			return fmt.Errorf("--max-body-mb must be between 1 and 8192")
 		}
+		// Description loading and operation execution can use separate clients.
+		// Their requests must share one allowance for this command invocation.
+		cmd.SetContext(httpclient.WithRequestBudget(cmd.Context(), flagMaxRequests))
 		return nil
 	},
 }
