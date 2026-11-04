@@ -90,6 +90,15 @@ explicit full-discovery command. Global controls include `--rate`, `--concurrenc
 `--timeout`, `--max-requests`, `--max-body-mb`, `--allow-host`, and
 `--allow-private`.
 
+`--max-requests` counts logical requests. One logical request includes the initial
+request and any redirects followed for it. A redirect tells the client to request
+another address; that extra HTTP exchange does not consume another budget unit.
+For example, a description download that follows one redirect can make two HTTP
+exchanges with `--max-requests 1`: the redirect reply, then the description reply.
+The option therefore does not cap each HTTP exchange separately. A separately
+started operation request uses another unit. The default is 10000 logical requests;
+`0` means unlimited. Existing redirect and scope rules still apply.
+
 ### Scan and auth comparison
 
 ```bash
