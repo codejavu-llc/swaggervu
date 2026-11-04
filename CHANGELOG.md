@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Bare-command inventory now warns in its text and JSON signals when relaxed
+  OpenAPI loading may leave the operation list incomplete, including in quiet mode.
+  External spec references remain unsupported.
+
 ## [1.1.0-rc.1] - 2026-08-22
 
 ### Added
