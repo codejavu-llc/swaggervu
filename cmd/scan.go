@@ -58,6 +58,7 @@ requests are sent).`,
 				return fmt.Errorf("--emit must be 'curl' or 'sqlmap', got %q", scanEmit)
 			}
 			opts := requestgen.DefaultOptions()
+			opts.BaseURL = scanBase
 			opts.IncludeRisk = scanRisk
 			for _, r := range requestgen.Build(s, opts) {
 				fmt.Println(commandFor(scanEmit, r))
