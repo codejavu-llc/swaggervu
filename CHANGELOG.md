@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Report a readable error for empty or null input documents instead of a formatting
+  diagnostic, while preserving invalid-input rejection and underlying parse errors.
+
 ## [1.1.0-rc.1] - 2026-08-22
 
 ### Added
