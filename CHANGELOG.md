@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `scan` now reports request-limit refusals and other request errors in an
+  incomplete-run notice on stderr, including in quiet mode and when a comparison
+  request cannot finish. Completed result rows, JSON format and exit behavior
+  remain unchanged.
+
 ## [1.1.0-rc.1] - 2026-08-22
 
 ### Added

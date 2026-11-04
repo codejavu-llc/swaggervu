@@ -60,6 +60,9 @@ type Config struct {
 	// unauthenticated, and endpoints whose response ignores the token entirely.
 	AuthHeaders map[string]string
 	GenOpts     requestgen.Options
+	// OnRequestError reports failed client calls, including budget refusals and
+	// failed comparison requests. It may be called by concurrent workers.
+	OnRequestError func(error)
 }
 
 // Run scans a spec and calls onResult for each probed endpoint.
@@ -109,6 +112,9 @@ func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Requ
 		}
 		resp, err := client.DoWithHeaders(ctx, req.Method, req.URL, bodyReader(req), headers)
 		if err != nil {
+			if cfg.OnRequestError != nil {
+				cfg.OnRequestError(err)
+			}
 			return
 		}
 		// Access-control signal: 401/403 means auth is enforced — not a finding.
@@ -160,6 +166,9 @@ func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Requ
 func probeAuthAware(ctx context.Context, client *httpclient.Client, req requestgen.Request, baseHeaders map[string]string, cfg Config, emit, onResult func(Result)) {
 	unauth, err := client.DoWithHeaders(ctx, req.Method, req.URL, bodyReader(req), baseHeaders)
 	if err != nil {
+		if cfg.OnRequestError != nil {
+			cfg.OnRequestError(err)
+		}
 		return
 	}
 	authHeaders := map[string]string{}
@@ -174,6 +183,8 @@ func probeAuthAware(ctx context.Context, client *httpclient.Client, req requestg
 	if authed, err := client.DoWithHeaders(ctx, req.Method, req.URL, bodyReader(req), authHeaders); err == nil {
 		authStatus = authed.Status
 		authBody = authed.BodyString()
+	} else if cfg.OnRequestError != nil {
+		cfg.OnRequestError(err)
 	}
 
 	body := unauth.BodyString()

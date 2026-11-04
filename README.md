@@ -60,6 +60,15 @@ SwaggerVu calls a clue a clue. A large anonymous response is an
 `authorization differential`—not proof that another user's object is accessible.
 See [Evidence semantics](docs/EVIDENCE.md).
 
+When a selected scan request fails, `scan` writes an incomplete-run notice to
+stderr, including under `--quiet`. It counts request-limit refusals separately
+from other request errors, including an unfinished comparison request. These are
+failed client-call counts, not a full coverage measure. Methods excluded by the
+chosen profile do not trigger this notice. Completed result rows and the JSON
+format stay unchanged; the notice does not by itself change the exit code. Keep
+stderr with saved results when reviewing a run. External-reference support and
+network rules are unchanged.
+
 ## Commands
 
 ```text

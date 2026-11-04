@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	"github.com/codejavu-llc/swaggervu/internal/detect"
+	"github.com/codejavu-llc/swaggervu/internal/httpclient"
 	"github.com/codejavu-llc/swaggervu/internal/output"
 	"github.com/codejavu-llc/swaggervu/internal/requestgen"
 	"github.com/codejavu-llc/swaggervu/internal/scan"
@@ -89,12 +92,20 @@ requests are sent).`,
 
 		genOpts := requestgen.DefaultOptions()
 		genOpts.BaseURL = scanBase
+		var budgetStops, otherErrors atomic.Int64
 		cfg := scan.Config{
 			Concurrency: flagConcurrency,
 			IncludeRisk: scanRisk,
 			EmitAll:     scanShowAll,
 			AuthHeaders: parseHeaders(scanAuth),
 			GenOpts:     genOpts,
+			OnRequestError: func(err error) {
+				if errors.Is(err, httpclient.ErrRequestBudget) {
+					budgetStops.Add(1)
+				} else {
+					otherErrors.Add(1)
+				}
+			},
 		}
 		if len(cfg.AuthHeaders) > 0 {
 			if len(flagAuthOrigins) == 0 {
@@ -129,7 +140,13 @@ requests are sent).`,
 		if scanMD {
 			sink.WriteLine(renderScanMarkdown(s, src, results))
 		}
-		log.Info("scan complete: %d interesting endpoint(s)", interesting)
+		if stopped, failed := budgetStops.Load(), otherErrors.Load(); stopped+failed > 0 {
+			// This fixed-text notice explains the result, so retain it under --quiet
+			// and keep it on stderr rather than mixing it into saved JSON/Markdown.
+			cmd.PrintErrf("warning: scan incomplete: %d request(s) stopped by the request limit; %d other request error(s). Results cover completed responses only.\n", stopped, failed)
+		} else {
+			log.Info("scan complete: %d interesting endpoint(s)", interesting)
+		}
 		return nil
 	},
 }
