@@ -280,28 +280,29 @@ func contextValue(name string, sch *openapi3.Schema, opts Options, visited map[*
 	return GenerateExample(sch, opts, visited)
 }
 
-// requiresAuth reports whether the spec declares a non-empty security
-// requirement for an operation. Operation-level security overrides the
-// document-level default; an explicit empty `security: []` on the operation
-// means anonymous access is allowed. A requirement counts as "auth required"
-// only if it lists at least one scheme (an empty `{}` requirement is optional).
+// requiresAuth reports whether every allowed security alternative requires a
+// scheme. Operation-level security overrides the document-level default. An
+// empty list or any empty requirement object permits anonymous access.
 func requiresAuth(doc *openapi3.T, op *openapi3.Operation) bool {
 	if op != nil && op.Security != nil {
-		return anyNonEmpty(*op.Security)
+		return allRequireAuth(*op.Security)
 	}
 	if doc != nil {
-		return anyNonEmpty(doc.Security)
+		return allRequireAuth(doc.Security)
 	}
 	return false
 }
 
-func anyNonEmpty(reqs openapi3.SecurityRequirements) bool {
+func allRequireAuth(reqs openapi3.SecurityRequirements) bool {
+	if len(reqs) == 0 {
+		return false
+	}
 	for _, r := range reqs {
-		if len(r) > 0 {
-			return true
+		if len(r) == 0 {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func serverURL(s *spec.Spec) string {

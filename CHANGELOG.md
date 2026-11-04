@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Treat an empty security alternative as optional authentication, including when
+  it appears alongside named schemes, while preserving operation-level overrides.
+
 ## [1.1.0-rc.1] - 2026-08-22
 
 ### Added
