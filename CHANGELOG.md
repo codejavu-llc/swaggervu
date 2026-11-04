@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep MCP network work disabled when no startup `--allow-host` is supplied,
+  including remote description loads, discovery and active scan calls. Local
+  description workflows and explicitly allowed host workflows remain available.
+
 ## [1.1.0-rc.1] - 2026-08-22
 
 ### Added

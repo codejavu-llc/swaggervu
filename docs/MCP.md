@@ -29,6 +29,12 @@ Private, loopback, link-local, documentation, benchmarking, multicast, and other
 special-use address ranges are denied unless the operator explicitly adds
 `--allow-private`. Use that flag only for an authorized internal assessment.
 
+With no startup `--allow-host`, MCP refuses remote description loads, discovery
+and active scan calls. Inspection, audit and planning from local files remain
+available under `--allow-root`. The error explains that a host must be allowed at
+startup. `--allow-private` changes address rules only, and `--active` enables the
+scan tool only; neither flag supplies a hostname permission.
+
 ## Client configuration
 
 Most clients accept this shape (the enclosing settings filename varies by client):
