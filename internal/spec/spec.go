@@ -79,6 +79,9 @@ func Load(b []byte, sourceURL string) (*Spec, error) {
 				b = jb
 			}
 		} else {
+			if err == nil {
+				return nil, fmt.Errorf("not a valid JSON/YAML/JS spec: empty or null document")
+			}
 			return nil, fmt.Errorf("not a valid JSON/YAML/JS spec: %w", err)
 		}
 	}
