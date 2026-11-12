@@ -141,7 +141,7 @@ func init() {
 	pf.BoolVar(&flagJSON, "json", false, "output results as JSON")
 	pf.StringSliceVar(&flagAllowedHosts, "allow-host", nil, "restrict network access to an exact hostname (repeatable)")
 	pf.BoolVar(&flagAllowPrivate, "allow-private", false, "allow loopback, private, and link-local targets")
-	pf.Int64Var(&flagMaxRequests, "max-requests", 10000, "hard request budget for this process (0 = unlimited)")
+	pf.Int64Var(&flagMaxRequests, "max-requests", 10000, "hard logical-request budget for this process; redirects share one unit (0 = unlimited)")
 	pf.Int64Var(&flagMaxBodyMB, "max-body-mb", 5, "maximum response body MiB retained per request")
 	pf.StringSliceVar(&flagAuthOrigins, "auth-origin", nil, "origin allowed to receive sensitive headers, e.g. https://api.example.com (repeatable)")
 }
