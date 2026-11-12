@@ -97,6 +97,9 @@ func Load(b []byte, sourceURL string) (*Spec, error) {
 			jsonBytes = jb
 		}
 	}
+	if kind == KindOpenAPI30 && hasBooleanSchemas(jsonBytes) {
+		return nil, fmt.Errorf("parse openapi: boolean schemas require OpenAPI 3.1 or later")
+	}
 	if kind == KindOpenAPI31 {
 		if normalized, changed := normalize31BooleanSchemas(jsonBytes); changed {
 			jsonBytes = normalized

@@ -185,6 +185,10 @@ func TestLoadBooleanVersionBoundary(t *testing.T) {
 	}{
 		{"3.0 object control", strings.Replace(fmt.Sprintf(booleanSchemaDocument, `{}`), "3.1.0", "3.0.3", 1), true},
 		{"3.0 boolean remains invalid", strings.Replace(fmt.Sprintf(booleanSchemaDocument, `true`), "3.1.0", "3.0.3", 1), false},
+		{"3.0 nested boolean remains invalid", strings.Replace(fmt.Sprintf(booleanSchemaDocument, `{"properties":{"flag":true}}`), "3.1.0", "3.0.3", 1), false},
+		{"3.0 response boolean remains invalid", `{"openapi":"3.0.3","info":{"title":"x","version":"1"},"paths":{"/x":{"get":{"responses":{"200":{"description":"ok","content":{"application/json":{"schema":false}}}}}}}}`, false},
+		{"3.0 YAML boolean remains invalid", "openapi: 3.0.3\ninfo: {title: x, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n    Any: true\n", false},
+		{"3.0 ordinary booleans stay valid", `{"openapi":"3.0.3","info":{"title":"x","version":"1"},"paths":{"/x":{"get":{"deprecated":true,"responses":{"200":{"description":"ok"}}}}},"components":{"schemas":{"Any":{"type":"object","additionalProperties":false,"default":{"flag":true}}}}}`, true},
 		{"2.0 object control", `{"swagger":"2.0","info":{"title":"x","version":"1"},"paths":{},"definitions":{"Any":{}}}`, true},
 		{"2.0 boolean remains invalid", `{"swagger":"2.0","info":{"title":"x","version":"1"},"paths":{},"definitions":{"Any":true}}`, false},
 	} {
