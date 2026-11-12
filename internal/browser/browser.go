@@ -8,7 +8,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/chromedp/cdproto/network"
@@ -56,59 +55,63 @@ func FindSpec(ctx context.Context, pageURL string, insecure bool, wait time.Dura
 	tabCtx, toCancel := context.WithTimeout(tabCtx, wait+20*time.Second)
 	defer toCancel()
 
-	var mu sync.Mutex
+	res := &Result{}
+	if _, err := chromedp.Call(tabCtx, network.Enable, network.EnableParams{}); err != nil {
+		return res, err
+	}
+
+	captureCtx, stopCapture := context.WithCancel(tabCtx)
+	events := chromedp.Events(captureCtx, network.ResponseReceived)
 	var responses []respMeta
-	chromedp.ListenTarget(tabCtx, func(ev any) {
-		if e, ok := ev.(*network.EventResponseReceived); ok && e.Response != nil {
-			mu.Lock()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for e, err := range events {
+			if err != nil {
+				return
+			}
+			if e.Response == nil {
+				continue
+			}
 			responses = append(responses, respMeta{
 				url:      e.Response.URL,
 				mimeType: e.Response.MimeType,
 				id:       e.RequestID,
 			})
-			mu.Unlock()
 		}
-	})
+	}()
 
-	res := &Result{}
-	err := chromedp.Run(tabCtx,
-		network.Enable(),
+	err := chromedp.Do(tabCtx,
 		chromedp.Navigate(pageURL),
 		chromedp.Sleep(wait),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			mu.Lock()
-			snapshot := make([]respMeta, len(responses))
-			copy(snapshot, responses)
-			mu.Unlock()
-
-			seen := map[string]bool{}
-			for _, r := range snapshot {
-				if !isCandidate(r) || seen[r.url] {
-					continue
-				}
-				seen[r.url] = true
-				res.Candidates = append(res.Candidates, r.url)
-
-				// Pull the response body straight from the browser (preserves
-				// the auth/headers the page used to fetch it).
-				body, err := network.GetResponseBody(r.id).Do(ctx)
-				if err != nil || len(body) == 0 {
-					continue
-				}
-				if k, _ := spec.Detect(body); k == spec.KindUnknown {
-					continue
-				}
-				if s, err := spec.Load(body, r.url); err == nil && s.Doc != nil {
-					res.Spec = s
-					res.SpecURL = r.url
-					return nil // first valid spec wins
-				}
-			}
-			return nil
-		}),
 	)
+	stopCapture()
+	<-done
 	if err != nil {
 		return res, err
+	}
+	seen := map[string]bool{}
+	for _, r := range responses {
+		if !isCandidate(r) || seen[r.url] {
+			continue
+		}
+		seen[r.url] = true
+		res.Candidates = append(res.Candidates, r.url)
+
+		// Pull the response body straight from the browser (preserves
+		// the auth/headers the page used to fetch it).
+		body, err := chromedp.Call(tabCtx, network.GetResponseBody, network.GetResponseBodyParams{RequestID: r.id})
+		if err != nil || len(body.Body) == 0 {
+			continue
+		}
+		if k, _ := spec.Detect(body.Body); k == spec.KindUnknown {
+			continue
+		}
+		if s, err := spec.Load(body.Body, r.url); err == nil && s.Doc != nil {
+			res.Spec = s
+			res.SpecURL = r.url
+			return res, nil // first valid spec wins
+		}
 	}
 	return res, nil
 }
