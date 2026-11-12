@@ -6,11 +6,37 @@ import (
 	"strings"
 )
 
-// normalize31BooleanSchemas adapts schema booleans for kin-openapi's object-only
-// SchemaRef. JSON Schema 2020-12 defines true as {} and false as {"not":{}}.
+// normalize31BooleanSchemas adapts schema booleans to equivalent objects.
+// JSON Schema 2020-12 defines true as {} and false as {"not":{}}.
 // Only schema locations are visited: examples, defaults and extensions are data.
 // The separate decode also keeps Spec.Raw in its original form.
 func normalize31BooleanSchemas(data []byte) ([]byte, bool) {
+	doc, ok := decodeBooleanSchemaDocument(data)
+	if !ok {
+		return nil, false
+	}
+	n := booleanSchemaNormalizer{replace: true}
+	visitBooleanSchemaLocations(doc, &n)
+	if !n.changed {
+		return nil, false
+	}
+	normalized, err := json.Marshal(doc)
+	return normalized, err == nil
+}
+
+// hasBooleanSchemas checks Schema Object locations in an OpenAPI 3.0 document.
+// Ordinary boolean data and keywords such as additionalProperties are allowed.
+func hasBooleanSchemas(data []byte) bool {
+	doc, ok := decodeBooleanSchemaDocument(data)
+	if !ok {
+		return false
+	}
+	n := booleanSchemaNormalizer{}
+	visitBooleanSchemaLocations(doc, &n)
+	return n.changed
+}
+
+func decodeBooleanSchemaDocument(data []byte) (map[string]any, bool) {
 	if !json.Valid(data) {
 		return nil, false
 	}
@@ -20,7 +46,10 @@ func normalize31BooleanSchemas(data []byte) ([]byte, bool) {
 	if err := decoder.Decode(&doc); err != nil {
 		return nil, false
 	}
-	n := booleanSchemaNormalizer{}
+	return doc, true
+}
+
+func visitBooleanSchemaLocations(doc map[string]any, n *booleanSchemaNormalizer) {
 	components, _ := doc["components"].(map[string]any)
 	n.schemas(components["schemas"])
 	for _, key := range []string{"parameters", "headers"} {
@@ -38,18 +67,19 @@ func normalize31BooleanSchemas(data []byte) ([]byte, bool) {
 			n.pathItem(item)
 		}
 	}
-	if !n.changed {
-		return nil, false
-	}
-	normalized, err := json.Marshal(doc)
-	return normalized, err == nil
 }
 
-type booleanSchemaNormalizer struct{ changed bool }
+type booleanSchemaNormalizer struct {
+	changed bool
+	replace bool
+}
 
 func (n *booleanSchemaNormalizer) schema(value any) any {
 	if allowed, ok := value.(bool); ok {
 		n.changed = true
+		if !n.replace {
+			return value
+		}
 		if allowed {
 			return map[string]any{}
 		}
