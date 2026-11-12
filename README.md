@@ -66,6 +66,15 @@ appears in text and JSON output, including `--quiet`. Use a self-contained
 description before relying on a complete operation list. External spec references
 remain disabled; the notice does not mean those references were loaded.
 
+When a selected scan request fails, `scan` writes an incomplete-run notice to
+stderr, including under `--quiet`. It counts request-limit refusals separately
+from other request errors, including an unfinished comparison request. These are
+failed client-call counts, not a full coverage measure. Methods excluded by the
+chosen profile do not trigger this notice. Completed result rows and the JSON
+format stay unchanged; the notice does not by itself change the exit code. Keep
+stderr with saved results when reviewing a run. External-reference support and
+network rules are unchanged.
+
 ## Commands
 
 ```text
