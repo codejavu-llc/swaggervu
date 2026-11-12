@@ -153,7 +153,7 @@ func buildOne(base, method, path string, item *openapi3.PathItem, op *openapi3.O
 					req.ContentType = "application/json"
 				}
 			case strings.Contains(ct, "x-www-form-urlencoded"):
-				req.Body = formEncode(ex)
+				req.Body = formEncode(ex, mt.Encoding)
 				req.ContentType = "application/x-www-form-urlencoded"
 			default:
 				if b, err := json.Marshal(ex); err == nil {
@@ -346,13 +346,32 @@ func toStr(v any) string {
 	}
 }
 
-func formEncode(ex any) string {
+func formEncode(ex any, encodings openapi3.Encodings) string {
 	m, ok := ex.(map[string]any)
 	if !ok {
 		return ""
 	}
 	vals := url.Values{}
 	for k, v := range m {
+		if items, ok := v.([]any); ok {
+			method := encodings[k].SerializationMethod()
+			if method.Style == openapi3.SerializationForm {
+				// Empty lists have no values to expand (RFC 6570, section 2.3).
+				if len(items) == 0 {
+					continue
+				}
+				parts := make([]string, 0, len(items))
+				for _, item := range items {
+					parts = append(parts, toStr(item))
+				}
+				if method.Explode {
+					vals[k] = parts
+				} else {
+					vals.Set(k, strings.Join(parts, ","))
+				}
+				continue
+			}
+		}
 		vals.Set(k, toStr(v))
 	}
 	return vals.Encode()
