@@ -60,6 +60,12 @@ SwaggerVu calls a clue a clue. A large anonymous response is an
 `authorization differential`—not proof that another user's object is accessible.
 See [Evidence semantics](docs/EVIDENCE.md).
 
+If OpenAPI loading falls back to the relaxed reader, the bare-command inventory
+includes an `operation list may be incomplete` notice in its signals. This notice
+appears in text and JSON output, including `--quiet`. Use a self-contained
+description before relying on a complete operation list. External spec references
+remain disabled; the notice does not mean those references were loaded.
+
 ## Commands
 
 ```text

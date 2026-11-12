@@ -94,6 +94,9 @@ func inspectSpec(s *spec.Spec, source string) inspectReport {
 		Title:         redact.Text(s.Title),
 		Secrets:       scanSpecDocument(s),
 	}
+	for _, warning := range s.Warnings {
+		r.Signals = append(r.Signals, redact.Text(warning))
+	}
 	for _, endpoint := range detect.Endpoints(s) {
 		r.Endpoints = append(r.Endpoints, redact.Text(endpoint))
 	}
