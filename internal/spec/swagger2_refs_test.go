@@ -56,6 +56,7 @@ func TestLoadSwagger2PathReferenceDetails(t *testing.T) {
 		{"literal plus", `{"/copy":{"$ref":"#/paths/~1tea+cake"},"/tea+cake":` + get + `}`,
 			[]string{"GET /copy", "GET /tea+cake"}},
 		{"empty path item", `{"/copy":{"$ref":"#/paths/~1empty"},"/empty":{}}`, nil},
+		{"extension-only path item", `{"/copy":{"$ref":"#/paths/~1empty"},"/empty":{"x-note":"valid"}}`, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -113,12 +114,15 @@ func TestLoadSwagger2PathReferenceErrors(t *testing.T) {
 		{"missing", `{"/copy":{"$ref":"#/paths/~1missing"}}`, "path"},
 		{"cycle", `{"/a":{"$ref":"#/paths/~1b"},"/b":{"$ref":"#/paths/~1a"}}`, "cycle"},
 		{"wrong target type", `{"/copy":{"$ref":"#/info/title"}}`, "object"},
+		{"document object is not path item", `{"/copy":{"$ref":"#"}}`, "unsupported field"},
+		{"info object is not path item", `{"/copy":{"$ref":"#/info"}}`, "unsupported field"},
+		{"schema object is not path item", `{"/copy":{"$ref":"#/definitions/Cake"}}`, "unsupported field"},
 		{"invalid pointer", `{"/copy":{"$ref":"#missing"}}`, "reference"},
 		{"separate file stays unsupported", `{"/copy":{"$ref":"other.json#/paths/~1cakes"}}`, "external"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			body := `{"swagger":"2.0","info":{"title":"Invalid local reference","version":"1"},"paths":` + tc.paths + `}`
+			body := `{"swagger":"2.0","info":{"title":"Invalid local reference","version":"1"},"definitions":{"Cake":{"type":"object"}},"paths":` + tc.paths + `}`
 			_, err := spec.Load([]byte(body), "./invalid.json")
 			if err == nil || !strings.Contains(strings.ToLower(err.Error()), tc.message) {
 				t.Fatalf("error = %v; want a clear %q error", err, tc.message)

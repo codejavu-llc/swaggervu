@@ -73,8 +73,18 @@ func resolveV2PathRef(ref string, raw map[string]any, resolved map[string]*opena
 		if err != nil {
 			return nil, fmt.Errorf("resolve path item reference %q: %w", ref, err)
 		}
-		if _, ok := value.(map[string]any); !ok {
+		object, ok := value.(map[string]any)
+		if !ok {
 			return nil, fmt.Errorf("path item reference %q must point to an object", ref)
+		}
+		// json.Unmarshal accepts unknown Path Item fields as extensions. Check the
+		// target's shape first so a pointer to the document or its info object
+		// cannot silently turn into an empty operation list. An empty object and
+		// an extension-only Path Item are both valid.
+		for _, key := range slices.Sorted(maps.Keys(object)) {
+			if !isV2PathItemField(key) {
+				return nil, fmt.Errorf("path item reference %q points to an object with unsupported field %q", ref, key)
+			}
 		}
 		body, err := json.Marshal(value)
 		if err != nil {
@@ -93,4 +103,16 @@ func resolveV2PathRef(ref string, raw map[string]any, resolved map[string]*opena
 		resolved[fragment] = target
 	}
 	return target, nil
+}
+
+func isV2PathItemField(key string) bool {
+	if strings.HasPrefix(key, "x-") {
+		return true
+	}
+	switch key {
+	case "$ref", "get", "put", "post", "delete", "options", "head", "patch", "parameters":
+		return true
+	default:
+		return false
+	}
 }
