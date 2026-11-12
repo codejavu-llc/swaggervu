@@ -46,33 +46,40 @@ var prepareCmd = &cobra.Command{
 func commandFor(tool string, r requestgen.Request) string {
 	switch strings.ToLower(tool) {
 	case "sqlmap":
-		cmd := fmt.Sprintf("sqlmap -u '%s' --batch", redact.URL(r.URL))
+		cmd := fmt.Sprintf("sqlmap -u %s --batch", shellQuote(redact.URL(r.URL)))
 		if r.Method != "GET" {
 			cmd += " --method=" + r.Method
 		}
 		if r.Body != "" {
-			cmd += fmt.Sprintf(" --data='%s'", redact.Text(r.Body))
+			cmd += " --data=" + shellQuote(redact.Text(r.Body))
 		}
 		return cmd
 	default: // curl
 		var b strings.Builder
-		fmt.Fprintf(&b, "curl --fail-with-body -sS -X %s '%s'", r.Method, redact.URL(r.URL))
+		fmt.Fprintf(&b, "curl --fail-with-body -sS -X %s %s", r.Method, shellQuote(redact.URL(r.URL)))
 		for k, v := range r.Headers {
 			if redact.Header(k) {
 				v = "[REDACTED]"
 			} else {
 				v = redact.Text(v)
 			}
-			fmt.Fprintf(&b, " -H '%s: %s'", redact.Text(k), v)
+			fmt.Fprintf(&b, " -H %s", shellQuote(redact.Text(k)+": "+v))
 		}
 		if r.ContentType != "" {
-			fmt.Fprintf(&b, " -H 'Content-Type: %s'", r.ContentType)
+			fmt.Fprintf(&b, " -H %s", shellQuote("Content-Type: "+r.ContentType))
 		}
 		if r.Body != "" {
-			fmt.Fprintf(&b, " --data '%s'", redact.Text(r.Body))
+			fmt.Fprintf(&b, " --data %s", shellQuote(redact.Text(r.Body)))
 		}
 		return b.String()
 	}
+}
+
+// shellQuote keeps one argument intact in POSIX-style shell text. A literal
+// apostrophe is placed in double quotes between adjacent single-quoted parts.
+// Callers apply the existing output redaction before quoting.
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 func init() {

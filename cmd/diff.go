@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/codejavu-llc/swaggervu/internal/detect"
+	"github.com/codejavu-llc/swaggervu/internal/redact"
 	"github.com/spf13/cobra"
 )
 
@@ -32,14 +33,16 @@ var diffCmd = &cobra.Command{
 		}
 		oldSet, newSet := stringSet(detect.Endpoints(oldSpec)), stringSet(detect.Endpoints(newSpec))
 		r := diffReport{SchemaVersion: "swaggervu.diff/v1"}
+		// Compare original operations before redacting their display labels.
+		// Distinct operations may have the same redacted label.
 		for endpoint := range newSet {
 			if !oldSet[endpoint] {
-				r.Added = append(r.Added, endpoint)
+				r.Added = append(r.Added, redact.Text(endpoint))
 			}
 		}
 		for endpoint := range oldSet {
 			if !newSet[endpoint] {
-				r.Removed = append(r.Removed, endpoint)
+				r.Removed = append(r.Removed, redact.Text(endpoint))
 			}
 		}
 		sort.Strings(r.Added)
@@ -66,7 +69,9 @@ var diffCmd = &cobra.Command{
 		if flagOutput != "" {
 			return writePrivateFile(flagOutput, body)
 		}
-		fmt.Print(string(body))
+		if _, err := cmd.OutOrStdout().Write(body); err != nil {
+			return fmt.Errorf("write diff output: %w", err)
+		}
 		return nil
 	},
 }

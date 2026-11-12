@@ -29,6 +29,12 @@ Private, loopback, link-local, documentation, benchmarking, multicast, and other
 special-use address ranges are denied unless the operator explicitly adds
 `--allow-private`. Use that flag only for an authorized internal assessment.
 
+With no startup `--allow-host`, MCP refuses remote description loads, discovery
+and active scan calls. Inspection, audit and planning from local files remain
+available under `--allow-root`. The error explains that a host must be allowed at
+startup. `--allow-private` changes address rules only, and `--active` enables the
+scan tool only; neither flag supplies a hostname permission.
+
 ## Client configuration
 
 Most clients accept this shape (the enclosing settings filename varies by client):
@@ -82,6 +88,11 @@ catalog. The canonical schemas are in [`schemas/`](../schemas/).
 - No shell, browser verification, custom payload, Wayback, SwaggerHub OSINT, or proxy
   capability in MCP.
 - Finding/run IDs are server-minted and stored only in memory.
+
+The command-line default is 10000 logical requests for one MCP process. One
+logical request includes redirects followed by the HTTP client; a redirect does
+not consume another budget unit. Setting `--max-requests 0` selects a 100-request
+safety limit for MCP, not an unlimited budget. A negative value is rejected.
 
 The serialized startup policy follows
 [`mcp-policy-v1.schema.json`](../schemas/mcp-policy-v1.schema.json).

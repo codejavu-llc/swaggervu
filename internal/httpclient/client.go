@@ -143,6 +143,10 @@ type Response struct {
 	Truncated   bool
 	ContentType string
 	Header      http.Header
+	// CredentialHeadersSent records whether the prepared request carried a
+	// nonempty credential-like header. It does not establish valid authentication
+	// and does not retain the header name or value in response metadata.
+	CredentialHeadersSent bool `json:"-"`
 }
 
 // Do performs a request honoring the rate limiter and default headers.
@@ -164,6 +168,9 @@ func (c *Client) ValidateURL(ctx context.Context, raw string) error {
 // DoWithHeaders performs a request, applying per-request headers on top of the
 // client defaults (used to send the generated Content-Type and header params).
 func (c *Client) DoWithHeaders(ctx context.Context, method, url string, body io.Reader, headers map[string]string) (*Response, error) {
+	if err := takeContextRequest(ctx); err != nil {
+		return nil, err
+	}
 	if c.opts.MaxRequests > 0 && c.requests.Add(1) > c.opts.MaxRequests {
 		return nil, ErrRequestBudget
 	}
@@ -201,6 +208,7 @@ func (c *Client) DoWithHeaders(ctx context.Context, method, url string, body io.
 			req.Header.Set(k, v)
 		}
 	}
+	credentialHeadersSent := hasCredentialHeaders(req.Header)
 	resp, err := c.hc.Do(req)
 	if err != nil {
 		return nil, err
@@ -216,13 +224,28 @@ func (c *Client) DoWithHeaders(ctx context.Context, method, url string, body io.
 		data = data[:c.opts.MaxBodyBytes]
 	}
 	return &Response{
-		URL:         url,
-		Status:      resp.StatusCode,
-		Body:        data,
-		Truncated:   truncated,
-		ContentType: resp.Header.Get("Content-Type"),
-		Header:      resp.Header,
+		URL:                   url,
+		Status:                resp.StatusCode,
+		Body:                  data,
+		Truncated:             truncated,
+		ContentType:           resp.Header.Get("Content-Type"),
+		Header:                resp.Header,
+		CredentialHeadersSent: credentialHeadersSent,
 	}, nil
+}
+
+func hasCredentialHeaders(headers http.Header) bool {
+	for name, values := range headers {
+		if !IsSensitiveHeader(name) {
+			continue
+		}
+		for _, value := range values {
+			if strings.TrimSpace(value) != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func randomIndex(n int) int {

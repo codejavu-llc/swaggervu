@@ -258,6 +258,9 @@ func (s *Service) inspect(ctx context.Context, source string, audit bool) (Inspe
 }
 
 func (s *Service) discover(ctx context.Context, args discoverArgs) (DiscoverOutput, error) {
+	if err := s.requireNetworkHost(); err != nil {
+		return DiscoverOutput{}, err
+	}
 	limit := args.Limit
 	if limit <= 0 || limit > 25 {
 		limit = 25
@@ -291,13 +294,20 @@ func (s *Service) runScan(ctx context.Context, source string) (ScanOutput, error
 	if !s.cfg.Active {
 		return ScanOutput{}, fmt.Errorf("run_readonly_scan is disabled; restart MCP with --active after authorization and scope review")
 	}
+	if err := s.requireNetworkHost(); err != nil {
+		return ScanOutput{}, err
+	}
 	doc, err := s.load(ctx, source)
 	if err != nil {
 		return ScanOutput{}, err
 	}
 	var findings []scan.Result
 	var findingsMu sync.Mutex
-	scan.Run(ctx, s.client, doc, scan.Config{Concurrency: 5, GenOpts: requestgen.DefaultOptions()}, func(result scan.Result) {
+	scan.Run(ctx, s.client, doc, scan.Config{
+		Concurrency:             5,
+		GenOpts:                 requestgen.DefaultOptions(),
+		DisableBasepathFallback: true,
+	}, func(result scan.Result) {
 		if result.Interesting {
 			findingsMu.Lock()
 			findings = append(findings, result)
@@ -335,8 +345,20 @@ func (s *Service) report(runID string) (ReportOutput, error) {
 	return ReportOutput{SchemaVersion: "swaggervu.mcp.report/v1", RunID: runID, Markdown: b.String()}, nil
 }
 
+// An empty host list keeps MCP local, even though the general-purpose HTTP
+// client uses an empty list to mean that hostname filtering is disabled.
+func (s *Service) requireNetworkHost() error {
+	if len(s.cfg.AllowedHosts) == 0 {
+		return fmt.Errorf("MCP network access requires --allow-host at startup")
+	}
+	return nil
+}
+
 func (s *Service) load(ctx context.Context, source string) (*spec.Spec, error) {
 	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
+		if err := s.requireNetworkHost(); err != nil {
+			return nil, err
+		}
 		resp, err := s.client.Get(ctx, source)
 		if err != nil {
 			return nil, err

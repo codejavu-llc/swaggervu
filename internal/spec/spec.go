@@ -34,6 +34,7 @@ type Spec struct {
 	Doc       *openapi3.T
 	Raw       map[string]any
 	SourceURL string
+	Warnings  []string // limitations to include in an inventory report
 }
 
 var jsObjectRe = regexp.MustCompile(`(?s)(?:let|const|var)\s+\w+\s*=\s*(\{.*?\})\s*[;\n]`)
@@ -79,6 +80,9 @@ func Load(b []byte, sourceURL string) (*Spec, error) {
 				b = jb
 			}
 		} else {
+			if err == nil {
+				return nil, fmt.Errorf("not a valid JSON/YAML/JS spec: empty or null document")
+			}
 			return nil, fmt.Errorf("not a valid JSON/YAML/JS spec: %w", err)
 		}
 	}
@@ -91,6 +95,14 @@ func Load(b []byte, sourceURL string) (*Spec, error) {
 	if !looksJSON(b) {
 		if jb, err := yamlToJSON(raw); err == nil {
 			jsonBytes = jb
+		}
+	}
+	if kind == KindOpenAPI30 && hasBooleanSchemas(jsonBytes) {
+		return nil, fmt.Errorf("parse openapi: boolean schemas require OpenAPI 3.1 or later")
+	}
+	if kind == KindOpenAPI31 {
+		if normalized, changed := normalize31BooleanSchemas(jsonBytes); changed {
+			jsonBytes = normalized
 		}
 	}
 
@@ -108,16 +120,17 @@ func Load(b []byte, sourceURL string) (*Spec, error) {
 		}
 		s.Doc = doc3
 	default:
-		doc3, err := loadV3(jsonBytes)
+		doc3, warnings, err := loadV3(jsonBytes)
 		if err != nil {
 			if fixed, ok := sanitizeForLoad(jsonBytes); ok {
-				doc3, err = loadV3(fixed)
+				doc3, warnings, err = loadV3(fixed)
 			}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("parse openapi: %w", err)
 		}
 		s.Doc = doc3
+		s.Warnings = warnings
 		if kind == KindUnknown && doc3.Paths != nil && doc3.Paths.Len() > 0 {
 			s.Kind = KindOpenAPI30
 		}
@@ -131,25 +144,28 @@ func Load(b []byte, sourceURL string) (*Spec, error) {
 
 // loadV3 parses OpenAPI 3.x bytes, falling back to a relaxed unmarshal so
 // partially-invalid specs still yield their paths.
-func loadV3(jsonBytes []byte) (*openapi3.T, error) {
+func loadV3(jsonBytes []byte) (*openapi3.T, []string, error) {
 	loader := openapi3.NewLoader()
 	// External references are network capabilities. They stay disabled until a
 	// policy-aware resolver can enforce host, redirect, depth, and byte budgets.
 	loader.IsExternalRefsAllowed = false
 	if doc, err := loader.LoadFromData(jsonBytes); err == nil {
-		return doc, nil
+		return doc, nil, nil
 	}
 	var d openapi3.T
 	if err := json.Unmarshal(jsonBytes, &d); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &d, nil
+	return &d, []string{"operation list may be incomplete: the description could not be fully resolved"}, nil
 }
 
 // loadV2 parses Swagger 2.0 bytes and converts to a v3 document.
 func loadV2(jsonBytes []byte) (*openapi3.T, error) {
 	var doc2 openapi2.T
 	if err := json.Unmarshal(jsonBytes, &doc2); err != nil {
+		return nil, err
+	}
+	if err := resolveV2PathRefs(&doc2, jsonBytes); err != nil {
 		return nil, err
 	}
 	return openapi2conv.ToV3(&doc2)

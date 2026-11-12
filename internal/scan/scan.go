@@ -38,7 +38,8 @@ type Result struct {
 	BodyTruncated bool   `json:"body_truncated,omitempty"`
 	Interesting   bool   `json:"interesting"`
 	// AuthStatus is the status of the authenticated comparison request, set only
-	// in auth-aware mode (Status then holds the unauthenticated status).
+	// in auth-aware mode (Status holds the baseline response status, before
+	// AuthHeaders are added; client and generated headers still apply).
 	AuthStatus int `json:"auth_status,omitempty"`
 	// Reasons explains why a result was flagged (e.g. "unauthenticated data",
 	// "authorization differential", "stack trace"). Empty for uninteresting results.
@@ -50,6 +51,9 @@ type Result struct {
 type Config struct {
 	Concurrency int
 	IncludeRisk bool
+	// DisableBasepathFallback keeps execution to the generated request set.
+	// Callers that publish an exact request plan should set this to true.
+	DisableBasepathFallback bool
 	// EmitAll reports every probed request to onResult, including 401/403 (which
 	// are otherwise skipped as "auth enforced"). It does not change which results
 	// are flagged Interesting or counted by the basepath-fallback heuristic.
@@ -60,6 +64,9 @@ type Config struct {
 	// unauthenticated, and endpoints whose response ignores the token entirely.
 	AuthHeaders map[string]string
 	GenOpts     requestgen.Options
+	// OnRequestError reports failed client calls, including budget refusals and
+	// failed comparison requests. It may be called by concurrent workers.
+	OnRequestError func(error)
 }
 
 // Run scans a spec and calls onResult for each probed endpoint.
@@ -68,19 +75,39 @@ func Run(ctx context.Context, client *httpclient.Client, s *spec.Spec, cfg Confi
 	reqs := requestgen.Build(s, cfg.GenOpts)
 	results := fire(ctx, client, reqs, cfg, onResult)
 
-	// Basepath fallback: if almost everything is an identical 404, the spec's
-	// declared basePath is likely wrong — retry against the host root. Skip it
-	// when the host root is the base we already scanned, otherwise we'd re-fire
-	// every request and emit duplicate results.
-	if shouldFallback(results) {
+	// Basepath fallback is only meaningful when all selected operations used
+	// the document base on the description's origin. A path or operation server
+	// (or an explicit base on another origin) must not be replaced with the
+	// description host root after a run of 404s.
+	if !cfg.DisableBasepathFallback && shouldFallback(results) {
 		root := strings.TrimRight(hostRoot(s), "/")
-		if root != "" && root != requestgen.ResolveBase(s, cfg.GenOpts) {
+		base := requestgen.ResolveBase(s, cfg.GenOpts)
+		if root != "" && root != base && sameOrigin(root, base) && requestsUseBase(reqs, base) {
 			cfg.GenOpts.BaseURL = root
 			reqs2 := requestgen.Build(s, cfg.GenOpts)
 			results = append(results, fire(ctx, client, reqs2, cfg, onResult)...)
 		}
 	}
 	return results
+}
+
+func requestsUseBase(reqs []requestgen.Request, base string) bool {
+	if len(reqs) == 0 {
+		return false
+	}
+	for _, req := range reqs {
+		if req.BaseURL() != base {
+			return false
+		}
+	}
+	return true
+}
+
+func sameOrigin(a, b string) bool {
+	ua, errA := url.Parse(a)
+	ub, errB := url.Parse(b)
+	return errA == nil && errB == nil && ua.Scheme != "" && ua.Host != "" &&
+		strings.EqualFold(ua.Scheme, ub.Scheme) && strings.EqualFold(ua.Host, ub.Host)
 }
 
 func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Request, cfg Config, onResult func(Result)) []Result {
@@ -109,6 +136,9 @@ func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Requ
 		}
 		resp, err := client.DoWithHeaders(ctx, req.Method, req.URL, bodyReader(req), headers)
 		if err != nil {
+			if cfg.OnRequestError != nil {
+				cfg.OnRequestError(err)
+			}
 			return
 		}
 		// Access-control signal: 401/403 means auth is enforced — not a finding.
@@ -144,7 +174,7 @@ func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Requ
 		//   - a reachable 200 carrying real data — but not a generic HTML app shell,
 		//     which is a common false positive for an SPA's catch-all route.
 		res.Reasons = reasonsFor(found, detectLeaks(body))
-		if resp.Status == 200 && len(resp.Body) >= largeResponseBytes && !isHTMLShell(body) {
+		if !resp.CredentialHeadersSent && resp.Status == 200 && len(resp.Body) >= largeResponseBytes && !isHTMLShell(body) {
 			res.Reasons = append(res.Reasons, "unauthenticated data")
 		}
 		finalize(&res)
@@ -153,13 +183,16 @@ func fire(ctx context.Context, client *httpclient.Client, reqs []requestgen.Requ
 	return out
 }
 
-// probeAuthAware fires an endpoint without and with the auth headers and
-// classifies the access-control outcome. Findings are derived from the
-// unauthenticated response (what an anonymous attacker sees); the authenticated
-// response is used only to tell "token is ignored" apart from "genuinely public".
+// probeAuthAware fires an endpoint before and after adding AuthHeaders.
+// Access-control reasons require a baseline without credential-like headers.
+// A baseline with such headers still supplies ordinary response evidence, but
+// cannot establish what an anonymous request would receive.
 func probeAuthAware(ctx context.Context, client *httpclient.Client, req requestgen.Request, baseHeaders map[string]string, cfg Config, emit, onResult func(Result)) {
 	unauth, err := client.DoWithHeaders(ctx, req.Method, req.URL, bodyReader(req), baseHeaders)
 	if err != nil {
+		if cfg.OnRequestError != nil {
+			cfg.OnRequestError(err)
+		}
 		return
 	}
 	authHeaders := map[string]string{}
@@ -174,6 +207,8 @@ func probeAuthAware(ctx context.Context, client *httpclient.Client, req requestg
 	if authed, err := client.DoWithHeaders(ctx, req.Method, req.URL, bodyReader(req), authHeaders); err == nil {
 		authStatus = authed.Status
 		authBody = authed.BodyString()
+	} else if cfg.OnRequestError != nil {
+		cfg.OnRequestError(err)
 	}
 
 	body := unauth.BodyString()
@@ -189,7 +224,9 @@ func probeAuthAware(ctx context.Context, client *httpclient.Client, req requestg
 		Secrets:       found,
 	}
 	res.Reasons = reasonsFor(found, detectLeaks(body))
-	res.Reasons = append(res.Reasons, accessControlReasons(req.RequiresAuth, unauth.Status, len(unauth.Body), body, authStatus, authBody)...)
+	if !unauth.CredentialHeadersSent {
+		res.Reasons = append(res.Reasons, accessControlReasons(req.RequiresAuth, unauth.Status, len(unauth.Body), body, authStatus, authBody)...)
+	}
 	finalize(&res)
 	if res.Interesting || cfg.EmitAll {
 		if res.Interesting {

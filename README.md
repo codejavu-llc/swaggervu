@@ -60,6 +60,21 @@ SwaggerVu calls a clue a clue. A large anonymous response is an
 `authorization differential`—not proof that another user's object is accessible.
 See [Evidence semantics](docs/EVIDENCE.md).
 
+If OpenAPI loading falls back to the relaxed reader, the bare-command inventory
+includes an `operation list may be incomplete` notice in its signals. This notice
+appears in text and JSON output, including `--quiet`. Use a self-contained
+description before relying on a complete operation list. External spec references
+remain disabled; the notice does not mean those references were loaded.
+
+When a selected scan request fails, `scan` writes an incomplete-run notice to
+stderr, including under `--quiet`. It counts request-limit refusals separately
+from other request errors, including an unfinished comparison request. These are
+failed client-call counts, not a full coverage measure. Methods excluded by the
+chosen profile do not trigger this notice. Completed result rows and the JSON
+format stay unchanged; the notice does not by itself change the exit code. Keep
+stderr with saved results when reviewing a run. External-reference support and
+network rules are unchanged.
+
 ## Commands
 
 ```text
@@ -89,6 +104,17 @@ Bare inspection checks HTTPS only and at most 25 priority paths. `discover` is t
 explicit full-discovery command. Global controls include `--rate`, `--concurrency`,
 `--timeout`, `--max-requests`, `--max-body-mb`, `--allow-host`, and
 `--allow-private`.
+
+`--max-requests` counts logical requests. One logical request includes the initial
+request and any redirects followed for it. A redirect tells the client to request
+another address; that extra HTTP exchange does not consume another budget unit.
+For example, a description download that follows one redirect can make two HTTP
+exchanges with `--max-requests 1`: the redirect reply, then the description reply.
+The option therefore does not cap each HTTP exchange separately. A separately
+started operation request uses another unit. The default is 10000 logical requests.
+For CLI commands other than `mcp`, `0` means unlimited. For `mcp`, setting
+`--max-requests 0` selects a 100-request safety limit. Existing redirect and scope
+rules still apply.
 
 ### Scan and auth comparison
 
@@ -139,6 +165,11 @@ swaggervu mcp --allow-root /absolute/path/to/specs
 swaggervu mcp --allow-host api.example.com --active \
   --max-requests 100 --max-body-mb 2 --rate 5
 ```
+
+Without a startup `--allow-host`, MCP refuses network work, including loading a
+description from a URL. Local-file inspection, audit and request planning remain
+available under `--allow-root`. Neither `--active` nor `--allow-private` adds a
+hostname permission; restart with an explicit allowed host to enable network work.
 
 Example client configuration:
 
