@@ -66,7 +66,9 @@ var diffCmd = &cobra.Command{
 		if flagOutput != "" {
 			return writePrivateFile(flagOutput, body)
 		}
-		fmt.Print(string(body))
+		if _, err := cmd.OutOrStdout().Write(body); err != nil {
+			return fmt.Errorf("write diff output: %w", err)
+		}
 		return nil
 	},
 }
