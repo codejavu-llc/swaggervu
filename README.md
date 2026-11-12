@@ -155,6 +155,11 @@ swaggervu mcp --allow-host api.example.com --active \
   --max-requests 100 --max-body-mb 2 --rate 5
 ```
 
+Without a startup `--allow-host`, MCP refuses network work, including loading a
+description from a URL. Local-file inspection, audit and request planning remain
+available under `--allow-root`. Neither `--active` nor `--allow-private` adds a
+hostname permission; restart with an explicit allowed host to enable network work.
+
 Example client configuration:
 
 ```json
