@@ -27,6 +27,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Update kin-openapi to the patched 0.149.0 release while preserving OpenAPI 3.0
   boolean-schema rejection and OpenAPI 3.1 boolean-schema support.
 
+- Refresh the grouped Go dependencies and migrate browser discovery and local
+  verification to the current chromedp event and action APIs.
+
 ### Fixed
 
 - Resolve same-document Swagger 2.0 Path Item references before conversion, so
@@ -79,6 +82,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Keep the scan host-root fallback from rerouting operation-server requests
   to the description source host.
+
+- Keep MCP scan execution within the request set presented by `plan_scan` by
+  disabling the CLI's conditional host-root fallback for MCP scans.
 
 ## [1.1.0-rc.1] - 2026-08-22
 
