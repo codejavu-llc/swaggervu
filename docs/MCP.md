@@ -89,6 +89,11 @@ catalog. The canonical schemas are in [`schemas/`](../schemas/).
   capability in MCP.
 - Finding/run IDs are server-minted and stored only in memory.
 
+The command-line default is 10000 logical requests for one MCP process. One
+logical request includes redirects followed by the HTTP client; a redirect does
+not consume another budget unit. Setting `--max-requests 0` selects a 100-request
+safety limit for MCP, not an unlimited budget. A negative value is rejected.
+
 The serialized startup policy follows
 [`mcp-policy-v1.schema.json`](../schemas/mcp-policy-v1.schema.json).
 

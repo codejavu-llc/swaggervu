@@ -111,8 +111,10 @@ another address; that extra HTTP exchange does not consume another budget unit.
 For example, a description download that follows one redirect can make two HTTP
 exchanges with `--max-requests 1`: the redirect reply, then the description reply.
 The option therefore does not cap each HTTP exchange separately. A separately
-started operation request uses another unit. The default is 10000 logical requests;
-`0` means unlimited. Existing redirect and scope rules still apply.
+started operation request uses another unit. The default is 10000 logical requests.
+For CLI commands other than `mcp`, `0` means unlimited. For `mcp`, setting
+`--max-requests 0` selects a 100-request safety limit. Existing redirect and scope
+rules still apply.
 
 ### Scan and auth comparison
 
