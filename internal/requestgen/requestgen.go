@@ -134,12 +134,17 @@ func buildOne(base, method, path string, item *openapi3.PathItem, op *openapi3.O
 			continue
 		}
 		pm := pref.Value
-		val := paramValue(pm, opts)
+		example := paramExample(pm, opts)
+		val := paramValue(example)
 		switch pm.In {
 		case "path":
 			resolvedPath = substitutePathParam(resolvedPath, pm.Name, val)
 		case "query":
-			query.Set(pm.Name, val)
+			if arr, ok := example.([]any); ok {
+				setQueryArray(query, pm, arr)
+			} else {
+				query.Set(pm.Name, val)
+			}
 		case "header":
 			req.Headers[pm.Name] = val
 		}
@@ -188,22 +193,56 @@ func substitutePathParam(path, name, val string) string {
 	return path
 }
 
-// paramValue picks a value for a parameter using schema + name heuristics.
-// Array parameters are rendered comma-separated (the most broadly compatible
-// collection format) rather than as a JSON array.
-func paramValue(pm *openapi3.Parameter, opts Options) string {
+// paramExample picks a value for a parameter using its schema. Callers serialize
+// arrays according to the parameter location and its OpenAPI style.
+func paramExample(pm *openapi3.Parameter, opts Options) any {
 	if pm.Schema != nil && pm.Schema.Value != nil {
-		ex := GenerateExample(pm.Schema.Value, opts, map[*openapi3.Schema]bool{})
-		if arr, ok := ex.([]any); ok {
-			parts := make([]string, 0, len(arr))
-			for _, it := range arr {
-				parts = append(parts, toStr(it))
-			}
-			return strings.Join(parts, ",")
-		}
-		return toStr(ex)
+		return GenerateExample(pm.Schema.Value, opts, map[*openapi3.Schema]bool{})
 	}
 	return opts.TestString
+}
+
+// paramValue keeps path and header arrays in their existing comma-separated form.
+func paramValue(example any) string {
+	if arr, ok := example.([]any); ok {
+		parts := make([]string, 0, len(arr))
+		for _, item := range arr {
+			parts = append(parts, toStr(item))
+		}
+		return strings.Join(parts, ",")
+	}
+	return toStr(example)
+}
+
+// setQueryArray preserves repeated values for the default form+explode style.
+// url.Values.Encode escapes each value separately and keeps their order.
+func setQueryArray(query url.Values, pm *openapi3.Parameter, arr []any) {
+	if len(arr) == 0 {
+		delete(query, pm.Name)
+		return
+	}
+	parts := make([]string, 0, len(arr))
+	for _, item := range arr {
+		parts = append(parts, toStr(item))
+	}
+	style := pm.Style
+	if style == "" {
+		style = openapi3.SerializationForm
+	}
+	switch style {
+	case openapi3.SerializationForm:
+		if pm.Explode == nil || *pm.Explode {
+			query[pm.Name] = parts
+			return
+		}
+	case openapi3.SerializationSpaceDelimited:
+		query.Set(pm.Name, strings.Join(parts, " "))
+		return
+	case openapi3.SerializationPipeDelimited:
+		query.Set(pm.Name, strings.Join(parts, "|"))
+		return
+	}
+	query.Set(pm.Name, strings.Join(parts, ","))
 }
 
 // GenerateExample recursively produces an example value for a schema.

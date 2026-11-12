@@ -56,6 +56,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Honor form-style array encoding in generated URL-encoded request bodies,
   using repeated fields by default and comma-joined values for `explode: false`.
 
+- Serialize generated query arrays using repeated parameters for the default
+  form style, or the declared comma, space, or pipe delimiter when not exploded.
+
 - Honor `scan --base-url` when printing curl or sqlmap commands with `--emit`.
 
 - Preserve ordinary apostrophes in generated curl and sqlmap arguments using
