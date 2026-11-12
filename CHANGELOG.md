@@ -24,6 +24,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Use Go 1.26.11 for CI and releases, including the standard-library security
   fixes needed by the vulnerability gate.
 
+- Update kin-openapi to the patched 0.148.0 release while retaining the parser
+  behavior covered by OpenAPI 3.0 and 3.1 regression tests.
+
 ### Fixed
 
 - Resolve same-document Swagger 2.0 Path Item references before conversion, so
