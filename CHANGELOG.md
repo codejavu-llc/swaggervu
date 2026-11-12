@@ -6,12 +6,73 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Bare-command inventory now warns in its text and JSON signals when relaxed
+  OpenAPI loading may leave the operation list incomplete, including in quiet mode.
+  External spec references remain unsupported.
+
+- `scan` now reports request-limit refusals and other request errors in an
+  incomplete-run notice on stderr, including in quiet mode and when a comparison
+  request cannot finish. Completed result rows, JSON format and exit behavior
+  remain unchanged.
+
+- Clarified `--max-requests` in command help and the README: redirects followed
+  for one logical request share its budget unit. The option does not cap each
+  HTTP exchange separately. Counting behavior and defaults are unchanged.
+
+- Use Go 1.26.11 for CI and releases, including the standard-library security
+  fixes needed by the vulnerability gate.
+
 ### Fixed
 
 - Resolve same-document Swagger 2.0 Path Item references before conversion, so
   operation inventories and diffs retain referenced operations. Invalid or cyclic
   references now report an error instead of silently omitting operations.
   External Path Item references remain unsupported and report an error.
+
+- Do not classify a response as anonymous access when its request carried a
+  nonempty credential-like header. Apply the same rule to the baseline of auth
+  comparisons, preserving other response evidence and existing request behavior.
+
+- Report output-write failures from `diff` in both JSON and text modes instead
+  of returning success when its stdout result cannot be delivered.
+
+- Honor operation and path server settings when generating requests, while
+  preserving explicit `--base-url` overrides and the document server default.
+
+- Share the command request budget across HTTP clients, so downloading a
+  description and requesting its operations use the same `--max-requests` limit.
+
+- Load OpenAPI 3.1 boolean schemas by adapting them to equivalent schema
+  objects, while preserving ordinary boolean values and the original raw input.
+
+- Redact matched values in added and removed operation labels in JSON and text
+  comparison output, while comparing original operations to preserve real changes.
+
+- Honor form-style array encoding in generated URL-encoded request bodies,
+  using repeated fields by default and comma-joined values for `explode: false`.
+
+- Honor `scan --base-url` when printing curl or sqlmap commands with `--emit`.
+
+- Preserve ordinary apostrophes in generated curl and sqlmap arguments using
+  POSIX-style shell quoting.
+
+- Report a readable error for empty or null input documents instead of a formatting
+  diagnostic, while preserving invalid-input rejection and underlying parse errors.
+
+- Treat an empty security alternative as optional authentication, including when
+  it appears alongside named schemes, while preserving operation-level overrides.
+
+- Keep MCP network work disabled when no startup `--allow-host` is supplied,
+  including remote description loads, discovery and active scan calls. Local
+  description workflows and explicitly allowed host workflows remain available.
+
+- Reject same-document Swagger 2.0 Path Item references to unrelated
+  document objects, rather than silently treating them as empty paths.
+
+- Keep the scan host-root fallback from rerouting operation-server requests
+  to the description source host.
 
 ## [1.1.0-rc.1] - 2026-08-22
 
