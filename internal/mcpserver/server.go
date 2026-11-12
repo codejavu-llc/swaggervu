@@ -303,7 +303,11 @@ func (s *Service) runScan(ctx context.Context, source string) (ScanOutput, error
 	}
 	var findings []scan.Result
 	var findingsMu sync.Mutex
-	scan.Run(ctx, s.client, doc, scan.Config{Concurrency: 5, GenOpts: requestgen.DefaultOptions()}, func(result scan.Result) {
+	scan.Run(ctx, s.client, doc, scan.Config{
+		Concurrency:             5,
+		GenOpts:                 requestgen.DefaultOptions(),
+		DisableBasepathFallback: true,
+	}, func(result scan.Result) {
 		if result.Interesting {
 			findingsMu.Lock()
 			findings = append(findings, result)

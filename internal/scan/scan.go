@@ -51,6 +51,9 @@ type Result struct {
 type Config struct {
 	Concurrency int
 	IncludeRisk bool
+	// DisableBasepathFallback keeps execution to the generated request set.
+	// Callers that publish an exact request plan should set this to true.
+	DisableBasepathFallback bool
 	// EmitAll reports every probed request to onResult, including 401/403 (which
 	// are otherwise skipped as "auth enforced"). It does not change which results
 	// are flagged Interesting or counted by the basepath-fallback heuristic.
@@ -76,7 +79,7 @@ func Run(ctx context.Context, client *httpclient.Client, s *spec.Spec, cfg Confi
 	// the document base on the description's origin. A path or operation server
 	// (or an explicit base on another origin) must not be replaced with the
 	// description host root after a run of 404s.
-	if shouldFallback(results) {
+	if !cfg.DisableBasepathFallback && shouldFallback(results) {
 		root := strings.TrimRight(hostRoot(s), "/")
 		base := requestgen.ResolveBase(s, cfg.GenOpts)
 		if root != "" && root != base && sameOrigin(root, base) && requestsUseBase(reqs, base) {
